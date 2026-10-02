@@ -1,0 +1,1999 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HEXA</title>
+
+<!-- PWA: telepíthető, egyérintéses indítás iOS / Android / macOS alól -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#07080b" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="HEXA" />
+<style>
+/*
+  HEXA — teljesen önálló, szerver nélküli jegyzet-motor.
+  Minden adat KIZÁRÓLAG a saját eszközödön, a böngésző helyi
+  adatbázisában (IndexedDB) él. Nincs bejelentkezés, nincs központi
+  szerver, nincs fiók — amit rögzítesz, az a tiéd, azon az eszközön,
+  ahol rögzítetted.
+
+  Megosztás: egy "Megosztás" csomag (fájl vagy beilleszthető szöveg)
+  formájában küldhetsz át bejegyzéseket bárkinek, bármilyen csatornán
+  (email, Messenger, AirDrop, stb.) — nincs szükség közös hálózatra
+  vagy futó szerverre, a másik fél a saját, önálló példányába importálja.
+
+  Ugyanaz a vizuális nyelv, mint a korábbi verziókban: "laterna magika"
+  sötét világ, lélegző idővonal-fonál, kép- és szövegtartalom teljes
+  egészében megjelenítve a bejegyzésben.
+*/
+
+:root{
+  color-scheme: dark;
+  --bg:#07080b;
+  --bg-vignette: radial-gradient(ellipse 120% 70% at 50% -10%, #14151c 0%, #07080b 55%);
+  --surface:#111219;
+  --surface-2:#171a23;
+  --line:#23262f;
+  --line-soft:#1a1c25;
+  --ink:#ece7dc;
+  --ink-dim:#a6a6b3;
+  --ink-faint:#6a6b78;
+  --accent:#e7b55c;
+  --accent-ink:#1a1206;
+  --accent-soft:rgba(231,181,92,.13);
+  --accent-glow:rgba(231,181,92,.55);
+  --thread:rgba(231,181,92,.30);
+
+  --c-event:#7ea7e0;
+  --c-decision:#f0a94f;
+  --c-thought:#4fd1c5;
+  --c-work:#b48ef0;
+  --c-other:#8992a8;
+
+  --err:#c9455a;
+  --ok:#4fd1c5;
+
+  --radius:16px;
+  --serif:'Fraunces', Georgia, serif;
+  --sans:'Work Sans', -apple-system, 'Segoe UI', sans-serif;
+  --mono:'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; margin:0; }
+body{
+  background: var(--bg-vignette), var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  min-height: 100%;
+}
+::selection{ background: var(--accent-soft); color:var(--ink); }
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px; }
+::-webkit-scrollbar-track{ background:transparent; }
+
+a{ color:var(--accent); }
+[hidden]{ display:none !important; }
+
+.ios-install-hint{
+  position:relative; display:flex; align-items:flex-start; gap:8px;
+  background:var(--surface-2); border:1px solid var(--line); border-radius:12px;
+  padding:11px 30px 11px 13px; font-size:12px; line-height:1.5; color:var(--ink-dim);
+  margin: 10px auto 0; max-width:760px;
+}
+.ios-hint-close{
+  position:absolute; top:7px; right:7px; width:22px; height:22px; border-radius:50%;
+  border:none; background:none; color:var(--ink-faint); cursor:pointer; font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+}
+.ios-hint-close:hover{ color:var(--ink); }
+
+/* ---------- lock screen ---------- */
+.auth-wrap{
+  min-height:100%; display:flex; align-items:center; justify-content:center;
+  padding: 40px 18px;
+}
+.auth-card{
+  width:100%; max-width:380px; background:var(--surface); border:1px solid var(--line);
+  border-radius: var(--radius); padding:28px 24px;
+}
+.auth-brand{
+  font-family: var(--serif); font-style:italic; font-weight:500; font-size:30px;
+  color:var(--ink); margin-bottom:4px;
+}
+.auth-brand b{ color:var(--accent); font-style:normal; font-weight:600; }
+.auth-sub{ font-size:12.5px; color:var(--ink-faint); margin-bottom:22px; line-height:1.5; }
+.auth-warn{
+  font-size:11.5px; color:var(--ink-faint); background:var(--surface-2); border:1px solid var(--line);
+  border-radius:10px; padding:10px 12px; margin-bottom:18px; line-height:1.5;
+}
+.auth-forgot{
+  display:block; text-align:center; margin-top:14px; font-size:12px; color:var(--ink-faint);
+  background:none; border:none; cursor:pointer; text-decoration:underline;
+}
+.auth-forgot:hover{ color:var(--err); }
+.remember-row{
+  display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-dim);
+  margin: 2px 0 16px; cursor:pointer; user-select:none;
+}
+.remember-row input{ width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex:none; margin:0; }
+.check-summary{ font-size:13px; color:var(--ink); margin:0 0 14px; line-height:1.5; }
+.check-summary b{ color:var(--accent); }
+.check-list{ background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:4px 0; margin:0 0 16px; max-height:260px; overflow-y:auto; }
+.check-list .ci{ padding:8px 12px; font-size:12.5px; color:var(--ink-dim); border-bottom:1px solid var(--line-soft); }
+.check-list .ci:last-child{ border-bottom:none; }
+.check-list .ci b{ color:var(--ink); font-weight:500; }
+.check-list .ci span{ display:block; color:var(--ink-faint); font-size:11px; margin-top:2px; }
+
+/* ---------- header ---------- */
+.hdr{
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 40;
+  padding: 18px 18px 14px;
+  background: linear-gradient(180deg, #07080bf2 0%, #07080bd6 70%, #07080b00 100%);
+  backdrop-filter: blur(10px);
+}
+.hdr-top{
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  max-width: 760px; margin: 0 auto;
+}
+.brand{
+  font-family: var(--serif); font-style: italic; font-weight: 500;
+  font-size: clamp(22px, 5vw, 30px);
+  letter-spacing: .2px;
+  color: var(--ink);
+}
+.brand b{ color: var(--accent); font-style: normal; font-weight: 600; }
+.sub{
+  font-size: 11.5px; color: var(--ink-faint); font-family: var(--mono);
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.hdr-right{ display:flex; align-items:center; gap:10px; flex:none; }
+.count-pill{
+  font-family: var(--mono); font-size:11.5px; color:var(--ink-faint);
+  border:1px solid var(--line-soft); border-radius:999px; padding:7px 11px; white-space:nowrap;
+}
+.mini-btn{
+  flex:none; font-family:var(--sans); font-size:12.5px; color:var(--ink-dim);
+  background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:8px 13px;
+  cursor:pointer; transition: all .2s; white-space:nowrap;
+}
+.mini-btn:hover{ border-color:var(--ink-faint); color:var(--ink); }
+.search-row{
+  max-width:760px; margin: 14px auto 0; display:flex; gap:8px; align-items:center;
+}
+.search-wrap{
+  flex:1; min-width:0;
+  display:flex; align-items:center; gap:8px;
+  background: var(--surface); border:1px solid var(--line);
+  border-radius: 999px; padding: 9px 14px;
+  transition: border-color .25s, box-shadow .25s;
+}
+.search-wrap:focus-within{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-wrap svg{ flex:none; opacity:.55; }
+.search-wrap input{
+  flex:1; min-width:0; background:none; border:none; outline:none;
+  color:var(--ink); font-family:var(--sans); font-size:14.5px;
+}
+.search-wrap input::placeholder{ color: var(--ink-faint); }
+.chips{
+  max-width:760px; margin: 10px auto 0; display:flex; gap:7px; overflow-x:auto;
+  padding-bottom:2px; scrollbar-width:none;
+}
+.chips::-webkit-scrollbar{ display:none; }
+.chip{
+  flex:none; font-family:var(--sans); font-size:13px; color:var(--ink-dim);
+  background: var(--surface); border:1px solid var(--line);
+  padding:6px 13px; border-radius:999px; cursor:pointer; user-select:none;
+  transition: all .2s;
+}
+.chip[data-on="1"]{
+  color: var(--accent-ink); background: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 16px -2px var(--accent-glow);
+}
+.chip:hover{ border-color: var(--ink-faint); }
+
+/* ---------- timeline ---------- */
+.wrap{ max-width:760px; margin:0 auto; padding: 8px 18px 140px; position:relative; }
+
+.month{
+  font-family: var(--mono); font-size:11.5px; letter-spacing:.08em;
+  color: var(--ink-faint); text-transform:uppercase;
+  margin: 38px 0 2px 46px; position:relative;
+}
+.month:first-child{ margin-top:18px; }
+
+.spine{ position:relative; }
+.spine::before{
+  content:"";
+  position:absolute; left:19px; top:0; bottom:0; width:1px;
+  background: linear-gradient(180deg, transparent 0%, var(--thread) 6%, var(--thread) 94%, transparent 100%);
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+  animation: breathe 9s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{ opacity:.55; }
+  50%{ opacity:.95; }
+}
+@media (prefers-reduced-motion: reduce){
+  .spine::before{ animation:none; opacity:.75; }
+}
+
+.node{
+  position:relative; display:flex; gap:16px; padding: 13px 0 13px 0;
+  margin-left: 0; opacity:1; filter:none; transform:none;
+  transition: opacity .5s ease, filter .5s ease, transform .5s ease;
+}
+.node.dim{
+  opacity:.14; filter: blur(1.6px) saturate(.5);
+}
+.orb-col{ flex:none; width:40px; display:flex; justify-content:center; padding-top:3px; position:relative; z-index:1; }
+.orb{
+  width: var(--orb-size, 11px); height: var(--orb-size, 11px); border-radius:50%;
+  background: radial-gradient(circle at 35% 30%, #fff8, var(--cc, var(--ink-faint)) 60%);
+  box-shadow: 0 0 0 3px #07080b, 0 0 14px -2px var(--cc, transparent);
+}
+
+.card{ flex:1; min-width:0; padding-top:0; }
+.row1{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
+.date{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); white-space:nowrap; }
+.cat-tag{ font-size:10.5px; font-family:var(--sans); font-weight:600; letter-spacing:.03em; color: var(--cc, var(--ink-faint)); }
+.title{
+  font-family: var(--serif); font-weight:450; font-size:16.5px; line-height:1.32;
+  color: var(--ink); margin:3px 0 0; text-wrap: balance;
+}
+.meta{ margin-top:5px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.origin-tag{ font-size:11px; color:var(--ink-faint); }
+.origin-tag b{ color:var(--ink-dim); font-weight:600; }
+.clip{ display:inline-flex; align-items:center; gap:3px; font-size:10.5px; color:var(--ink-faint); font-family:var(--mono); }
+.card{ cursor:pointer; border-radius:12px; padding:4px 8px; margin:-4px -8px; transition: background .18s; }
+.card:hover{ background: var(--line-soft); }
+.card:active{ background: var(--accent-soft); }
+
+/* ---------- detail sheet ---------- */
+.detail-title{ font-family:var(--serif); font-weight:500; font-size:21px; line-height:1.32; margin:2px 0 16px; text-wrap:balance; }
+.detail-kv{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; padding:10px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px; }
+.detail-kv:last-of-type{ border-bottom:none; }
+.detail-kv .k{ color:var(--ink-faint); font-size:12px; letter-spacing:.02em; }
+.detail-kv .v{ color:var(--ink); text-align:right; }
+.detail-kv .v.accentv{ color: var(--dc, var(--accent)); font-weight:500; }
+.detail-body{ font-family:var(--sans); font-size:14.5px; line-height:1.62; color:var(--ink); margin:0 0 18px; padding:14px 16px; background:var(--surface-2); border-left:2px solid var(--accent-soft); border-radius:2px; white-space:pre-wrap; }
+.detail-empty{ font-family:var(--sans); font-size:13px; font-style:italic; color:var(--ink-faint); margin:0 0 18px; }
+.attach-label{ font-size:11.5px; color:var(--ink-faint); letter-spacing:.02em; margin:0 0 8px; }
+.attach-block{ margin:0 0 18px; }
+.attach-img-full{ display:block; width:100%; max-height:70vh; object-fit:contain; border-radius:10px; border:1px solid var(--line); background:var(--surface); cursor:zoom-in; }
+.attach-text{
+  font-family: var(--mono); font-size:12.5px; line-height:1.55; color:var(--ink-dim);
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:12px 14px; white-space:pre-wrap; word-break:break-word;
+  max-height:340px; overflow-y:auto; margin-top:6px;
+}
+.attach-doc{
+  display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink);
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:8px 12px; text-decoration:none; max-width:100%; margin-top:6px;
+}
+.attach-doc:hover{ border-color:var(--ink-faint); }
+.attach-doc .name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; }
+.attach-filename{ font-size:11px; color:var(--ink-faint); margin:0 0 4px; }
+.close-x{
+  position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:50%;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-dim); font-size:15px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; transition: color .2s, border-color .2s;
+}
+.close-x:hover{ color:var(--ink); border-color:var(--ink-faint); }
+
+.empty{
+  text-align:center; padding: 90px 20px; color:var(--ink-faint);
+  font-family: var(--serif); font-style:italic; font-size:17px; line-height:1.6;
+}
+.empty small{ display:block; margin-top:8px; font-family:var(--mono); font-style:normal; font-size:11.5px; }
+
+/* ---------- FAB + modal ---------- */
+.fab{
+  position:fixed; right: calc(20px + env(safe-area-inset-right,0px));
+  bottom: calc(22px + env(safe-area-inset-bottom,0px));
+  width:56px; height:56px; border-radius:50%; border:none; cursor:pointer;
+  background: var(--accent); color:var(--accent-ink);
+  font-size:26px; line-height:1; display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 6px 24px -4px var(--accent-glow), 0 2px 8px #0008;
+  transition: transform .25s;
+  z-index: 50;
+}
+.fab:hover{ transform: scale(1.06); }
+.fab:active{ transform: scale(.96); }
+
+.overlay{
+  position:fixed; inset:0; background: rgba(5,5,8,.68); backdrop-filter: blur(6px);
+  display:flex; align-items:flex-end; justify-content:center;
+  z-index: 60; opacity:0; pointer-events:none; transition: opacity .3s;
+  padding: 0;
+}
+.overlay[data-open="1"]{ opacity:1; pointer-events:auto; }
+@media (min-width:640px){ .overlay{ align-items:center; padding:20px; } }
+
+.modal{
+  width:100%; max-width:520px; max-height: min(86vh, 720px); overflow-y:auto;
+  background: var(--surface-2); border:1px solid var(--line);
+  border-radius: 22px 22px 0 0; padding: 22px 20px calc(24px + env(safe-area-inset-bottom,0px));
+  transform: translateY(24px); transition: transform .35s cubic-bezier(.2,.8,.2,1);
+}
+@media (min-width:640px){ .modal{ border-radius:22px; transform: translateY(10px) scale(.98); } }
+.overlay[data-open="1"] .modal{ transform: translateY(0) scale(1); }
+
+.modal h2{ font-family:var(--serif); font-weight:500; font-size:20px; margin:0 0 4px; }
+.modal p.hint{ color:var(--ink-faint); font-size:12.5px; margin:0 0 18px; line-height:1.5; }
+
+.field{ margin-bottom:14px; }
+.field label{ display:block; font-size:11.5px; color:var(--ink-dim); margin-bottom:6px; letter-spacing:.02em; }
+.field input[type="text"], .field input[type="date"], .field select, .field textarea{
+  width:100%; background: var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:10px 12px; color:var(--ink); font-family:var(--sans); font-size:14.5px; outline:none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.field textarea{ resize:vertical; min-height:90px; font-family:var(--sans); }
+.field input:focus, .field select:focus, .field textarea:focus{
+  border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
+}
+.field-row{ display:flex; gap:10px; }
+.field-row .field{ flex:1; min-width:0; }
+.field select{ appearance:none; background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%), linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%); background-position: calc(100% - 18px) center, calc(100% - 13px) center; background-size:5px 5px, 5px 5px; background-repeat:no-repeat; }
+
+.file-drop{
+  border:1px dashed var(--line); border-radius:12px; padding:14px; text-align:center;
+  color:var(--ink-faint); font-size:12.5px; cursor:pointer; transition: border-color .2s, color .2s;
+}
+.file-drop:hover{ border-color:var(--accent); color:var(--ink-dim); }
+.file-drop input{ display:none; }
+.pending-files{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.pending-chip{
+  display:flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--line);
+  border-radius:9px; padding:6px 8px; font-size:11.5px; color:var(--ink-dim); max-width:180px;
+}
+.pending-chip img{ width:22px; height:22px; border-radius:5px; object-fit:cover; flex:none; }
+.pending-chip .pn{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pending-chip button{
+  flex:none; background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:13px; line-height:1;
+  padding:0 2px;
+}
+.pending-chip button:hover{ color: var(--err); }
+
+.modal-actions{ display:flex; gap:10px; margin-top:18px; }
+.btn{
+  flex:1; padding:12px 14px; border-radius:11px; border:1px solid var(--line);
+  background:var(--surface); color:var(--ink); font-family:var(--sans); font-size:14.5px; font-weight:500;
+  cursor:pointer; transition: all .2s;
+}
+.btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.btn.primary:hover{ box-shadow:0 0 18px -4px var(--accent-glow); }
+.btn:disabled{ opacity:.5; cursor:default; }
+.err{ color: var(--err); font-size:12.5px; margin-top:4px; min-height:1em; }
+.note{ color:var(--ink-faint); font-size:11.5px; margin-top:4px; }
+
+.toast{
+  position:fixed; left:50%; bottom: calc(96px + env(safe-area-inset-bottom,0px));
+  transform: translateX(-50%) translateY(10px); z-index:70;
+  background: var(--surface-2); border:1px solid var(--line); color:var(--ink);
+  font-size:13px; padding:10px 18px; border-radius:999px;
+  opacity:0; transition: opacity .5s, transform .5s; pointer-events:none;
+  font-family: var(--sans); max-width: 86vw; text-align:center;
+}
+.toast[data-show="1"]{ opacity:1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- share / import panel ---------- */
+.share-tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:3px; margin-bottom:18px; }
+.share-tab{ flex:1; text-align:center; font-size:13px; font-weight:500; color:var(--ink-dim); padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none; transition:all .2s; }
+.share-tab[data-on="1"]{ color:var(--accent-ink); background:var(--accent); }
+.share-pane{ }
+.share-pane[hidden]{ display:none; }
+.import-preview{ background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:10px; max-height:220px; overflow-y:auto; }
+.import-preview .ip-row{ font-size:12.5px; color:var(--ink-dim); padding:5px 0; border-bottom:1px solid var(--line-soft); }
+.import-preview .ip-row:last-child{ border-bottom:none; }
+.import-preview .ip-row b{ color:var(--ink); }
+.share-textarea{ width:100%; min-height:90px; font-family:var(--mono); font-size:11.5px; background:var(--surface); border:1px solid var(--line); border-radius:10px; color:var(--ink-dim); padding:10px 12px; resize:vertical; }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ================= LOCK SCREEN ================= -->
+<div class="auth-wrap" id="lockScreen">
+  <div class="auth-card">
+    <div class="auth-brand"><b>HEXA</b></div>
+
+    <div id="setupPane">
+      <div class="auth-sub">Ez az első indítás ezen az eszközön. A bejegyzéseid végig csak itt, titkosítva tárolódnak. A hitelesítő szerver cím megadása nem kötelező — ha üresen hagyod, azonnal használhatod az appot, csak ezen az eszközön; ha megadod, emailes fiók-ellenőrzést és jelszó-visszaállítást is kapsz.</div>
+      <form id="setupForm">
+        <div class="field">
+          <label for="su-name">Felhasználónév</label>
+          <input id="su-name" type="text" maxlength="60" required placeholder="pl. Nagy György" />
+        </div>
+        <div class="field">
+          <label for="su-email">Email cím (opcionális)</label>
+          <input id="su-email" type="email" placeholder="te@pelda.hu" />
+        </div>
+        <div class="field">
+          <label for="su-pass">Jelszó</label>
+          <input id="su-pass" type="password" required minlength="4" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="su-pass2">Jelszó mégegyszer</label>
+          <input id="su-pass2" type="password" required minlength="4" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="su-server">Hitelesítő szerver címe (opcionális)</label>
+          <input id="su-server" type="text" placeholder="pl. https://hexa-auth.onrender.com" />
+          <div class="note">Ezt attól kapod, aki üzembe helyezte (lásd DEPLOY.md). Ha üresen hagyod, az app azonnal, szerver nélkül, csak ezen az eszközön működik — ekkor viszont elfelejtett jelszó esetén emailes visszaállítás nincs, csak a saját mentésed (Megosztás → Minden bejegyzés) segít. A szerver címét bármikor pótolhatod, ha később mégis szeretnéd az email-alapú jelszó-visszaállítást.</div>
+        </div>
+        <label class="remember-row" for="su-remember">
+          <input id="su-remember" type="checkbox" />
+          <span>Jelszó megjegyzése ezen az eszközön</span>
+        </label>
+        <div class="auth-warn">⚠️ A jelszó-visszaállítás csak a HEXA <b>fiókodat</b> (email-hitelesítés) tudja megújítani. A már titkosítva eltárolt bejegyzéseidet egy elfelejtett jelszó esetén technikailag nem lehet visszafejteni — ezekért külön mentést (Megosztás → Minden bejegyzés) érdemes készíteni.</div>
+        <div class="err" id="setupErr"></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn primary" id="setupBtn" style="flex:1">Regisztráció</button>
+        </div>
+      </form>
+      <button type="button" class="auth-forgot" id="btnOpenCheck">Van már korábbi bejegyzésem ezen az eszközön? Ellenőrzés regisztráció nélkül</button>
+    </div>
+
+    <div id="checkPane" hidden>
+      <div class="auth-sub">Ez csak megnézi, van-e már korábban mentett adat ezen az eszközön, ebben a böngészőben — nem kér jelszót, nem küld semmit sehova, és nem töröl és nem ír felül semmit.</div>
+      <div id="checkResult"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="btnCheckBack" style="flex:1">Vissza</button>
+      </div>
+    </div>
+
+    <div id="verifyPane" hidden>
+      <div class="auth-sub">Küldtünk egy megerősítő emailt a(z) <b id="verifyEmailLabel"></b> címre. Nyisd meg, kattints a linkre, majd gyere vissza ide.</div>
+      <div class="err" id="verifyErr"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btnCheckVerified" style="flex:1">Megerősítettem — folytatás</button>
+      </div>
+      <button type="button" class="auth-forgot" id="btnResendVerify">Megerősítő email újraküldése</button>
+    </div>
+
+    <div id="unlockPane" hidden>
+      <div class="auth-sub" id="unlockGreeting">Üdv újra.</div>
+      <form id="unlockForm">
+        <div class="field">
+          <label for="ul-pass">Jelszó</label>
+          <input id="ul-pass" type="password" required autocomplete="current-password" />
+        </div>
+        <label class="remember-row" for="ul-remember">
+          <input id="ul-remember" type="checkbox" />
+          <span>Jelszó megjegyzése ezen az eszközön</span>
+        </label>
+        <div class="err" id="unlockErr"></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn primary" id="unlockBtn" style="flex:1">Feloldás</button>
+        </div>
+      </form>
+      <button type="button" class="auth-forgot" id="btnForgot">Elfelejtett jelszó</button>
+    </div>
+
+    <div id="forgotPane" hidden>
+      <div class="auth-sub" id="forgotIntro">Visszaállító emailt küldünk a fiókodhoz tartozó címre.</div>
+      <div id="forgotStep1">
+        <div class="err" id="forgotErr1"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn primary" id="btnSendForgotEmail" style="flex:1">Visszaállító email küldése</button>
+        </div>
+      </div>
+      <div id="forgotStep2" hidden>
+        <div class="field">
+          <label for="forgot-newpass">Az emailben kapott linken beállított ÚJ jelszó</label>
+          <input id="forgot-newpass" type="password" autocomplete="current-password" />
+        </div>
+        <label class="remember-row" for="forgot-remember">
+          <input id="forgot-remember" type="checkbox" />
+          <span>Jelszó megjegyzése ezen az eszközön</span>
+        </label>
+        <div class="auth-warn">⚠️ Ez a lépés törli az ezen az eszközön eddig a régi jelszóval titkosított bejegyzéseket (azok technikailag nem menthetők át), és egy új, üres, az új jelszóval védett tárolót hoz létre.</div>
+        <div class="err" id="forgotErr2"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn primary" id="btnContinueNewPassword" style="flex:1">Folytatás az új jelszóval</button>
+        </div>
+      </div>
+      <button type="button" class="auth-forgot" id="btnForgotCancel">Mégsem, vissza</button>
+      <button type="button" class="auth-forgot" id="btnNuclearReset">Nincs hozzáférésem ehhez az emailhez — minden adat törlése és teljesen új kezdés</button>
+    </div>
+  </div>
+</div>
+
+<div id="appRoot" hidden>
+  <header class="hdr">
+    <div class="hdr-top">
+      <div>
+        <div class="brand"><b>HEXA</b></div>
+        <div class="sub" id="scopeHint">a saját eszközödön, önállóan</div>
+      </div>
+      <div class="hdr-right">
+        <div class="count-pill" id="countPill">—</div>
+        <button class="mini-btn" id="installBtn" type="button" hidden>⬇ Telepítés</button>
+        <button class="mini-btn" id="btnShare" type="button">Megosztás</button>
+        <button class="mini-btn" id="btnLock" type="button" title="Zárolás">🔒</button>
+      </div>
+    </div>
+    <div class="ios-install-hint" id="iosInstallHint" hidden>
+      📲 Tedd ki a kezdőképernyőre: a Safari megosztás gombjával (⬆️) válaszd a „Kezdőképernyőhöz adás” lehetőséget — utána egy érintéssel nyílik meg, böngészősáv nélkül, és a szerkesztőtől teljesen függetlenül, a saját gépeden/telefonodon fut tovább.
+      <button type="button" class="ios-hint-close" id="iosHintClose" aria-label="Bezárás">✕</button>
+    </div>
+    <div class="search-row">
+      <div class="search-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Keresés a bejegyzések között…" autocomplete="off" />
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <main class="wrap">
+    <div class="spine" id="spine"></div>
+    <div class="empty" id="emptyState" hidden></div>
+  </main>
+
+  <button class="fab" id="fabAdd" aria-label="Új bejegyzés hozzáadása" title="Új bejegyzés">+</button>
+
+  <!-- ===== add entry modal ===== -->
+  <div class="overlay" id="overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle">Új bejegyzés</h2>
+      <p class="hint">Rögzítsd a saját emlékedet, feljegyzésedet vagy munkadokumentumodat — kép és dokumentum is csatolható. Minden a te eszközödön marad.</p>
+      <form id="addForm">
+        <div class="field">
+          <label for="f-title">Cím *</label>
+          <input id="f-title" type="text" required maxlength="200" placeholder="Miről szól ez a bejegyzés?" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-category">Kategória</label>
+            <select id="f-category">
+              <option value="EVENT">Esemény</option>
+              <option value="DECISION">Döntés</option>
+              <option value="THOUGHT">Gondolat / reflexió</option>
+              <option value="WORK">Munkaanyag</option>
+              <option value="OTHER">Egyéb</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-date">Dátum</label>
+            <input id="f-date" type="date" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-body">Tartalom</label>
+          <textarea id="f-body" maxlength="8000" placeholder="Írd le részletesen — ez jelenik majd meg a bejegyzés megnyitásakor."></textarea>
+        </div>
+        <div class="field" id="attachField">
+          <label>Csatolmány (kép vagy dokumentum)</label>
+          <div class="file-drop" id="fileDrop">
+            Kattints ide fájl kiválasztásához<br />kép, PDF, szöveg, Markdown, CSV vagy JSON — max. 10&nbsp;MB / fájl
+            <input id="f-files" type="file" multiple accept="image/*,.pdf,.md,.markdown,.csv,.json,.txt,.svg" />
+          </div>
+          <div class="pending-files" id="pendingFiles"></div>
+        </div>
+        <div class="err" id="formErr"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="cancelAdd">Mégse</button>
+          <button type="submit" class="btn primary" id="saveAdd">Mentés</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== detail sheet ===== -->
+  <div class="overlay" id="detailOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle" style="position:relative;">
+      <button class="close-x" id="closeDetail" aria-label="Bezárás" type="button">✕</button>
+      <div class="date" id="d-date" style="margin-bottom:8px;"></div>
+      <div class="detail-title" id="detailTitle"></div>
+      <div id="d-attachments"></div>
+      <div id="d-body"></div>
+      <div id="d-rows"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="btnShareOne">Megosztás erről</button>
+        <button type="button" class="btn" id="btnDeleteOne" style="color:var(--err)">Törlés</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== share / import overlay ===== -->
+  <div class="overlay" id="shareOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shareTitle" style="position:relative;">
+      <button class="close-x" id="closeShare" aria-label="Bezárás" type="button">✕</button>
+      <h2 id="shareTitle">Megosztás</h2>
+      <p class="hint">Nincs közös szerver, nincs hálózati feltétel — csak egy fájl vagy szöveg, amit bármilyen csatornán (email, Messenger, AirDrop, bármi) átküldhetsz. A másik fél a saját, önálló HEXA példányába fogadja be.</p>
+      <div class="share-tabs">
+        <div class="share-tab" data-tab="send" data-on="1">Küldés</div>
+        <div class="share-tab" data-tab="receive" data-on="0">Fogadás</div>
+      </div>
+
+      <div class="share-pane" id="pane-send">
+        <div class="field">
+          <label for="share-label">A neved (ezt látja majd a másik fél, kitől jött)</label>
+          <input id="share-label" type="text" maxlength="60" placeholder="pl. Nagy György" />
+        </div>
+        <div class="field">
+          <label>Mit küldjünk?</label>
+          <div class="modal-actions" style="margin-top:0">
+            <button type="button" class="btn" id="btnExportAll">Minden bejegyzés</button>
+            <button type="button" class="btn" id="btnExportFiltered">Csak a jelenleg szűrt</button>
+          </div>
+        </div>
+        <div id="exportResult" hidden>
+          <div class="field">
+            <label>1. lehetőség — fájl (ajánlott, csatold e-mailhez vagy Messengerhez)</label>
+            <button type="button" class="btn primary" id="btnDownloadExport" style="width:100%">⬇ Letöltés .hexa.json fájlként</button>
+          </div>
+          <div class="field">
+            <label>2. lehetőség — szöveg (illeszd be közvetlenül egy chatbe)</label>
+            <textarea class="share-textarea" id="exportText" readonly></textarea>
+            <button type="button" class="btn" id="btnCopyExport" style="margin-top:8px;width:100%">📋 Másolás vágólapra</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="share-pane" id="pane-receive" hidden>
+        <div class="field">
+          <label>Kapott fájl megnyitása</label>
+          <div class="file-drop" id="importDrop">
+            Kattints ide a kapott .hexa.json / .json fájl kiválasztásához
+            <input id="importFile" type="file" accept=".json,.hexa,.hexa.json,application/json" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="importText">...vagy illeszd be ide a kapott szöveget</label>
+          <textarea class="share-textarea" id="importText" placeholder="Illeszd be ide a HEXA megosztás-szöveget…"></textarea>
+          <button type="button" class="btn" id="btnParseImportText" style="margin-top:8px">Beolvasás</button>
+        </div>
+        <div class="err" id="importErr"></div>
+        <div id="importPreviewWrap" hidden>
+          <div class="import-preview" id="importPreview"></div>
+          <div class="field" style="margin-top:12px">
+            <label for="importOriginOverride">Forrás megnevezése (ha felül akarod írni)</label>
+            <input id="importOriginOverride" type="text" maxlength="60" placeholder="pl. Kovács Anna" />
+          </div>
+          <div class="field" id="importReplaceWrap" hidden style="margin-top:4px;">
+            <label style="display:flex;align-items:flex-start;gap:8px;font-weight:normal;">
+              <input id="importReplaceExisting" type="checkbox" checked style="margin-top:3px;" />
+              <span>A korábban, <b id="importReplaceLabel"></b> forrásból importált <b id="importReplaceCount"></b> meglévő bejegyzés cseréje erre a frissebb változatra (ne duplikálódjon)</span>
+            </label>
+          </div>
+          <button type="button" class="btn primary" id="btnConfirmImport" style="width:100%">Hozzáadás a saját jegyzeteimhez</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CAT_LABEL = { EVENT:"Esemény", DECISION:"Döntés", THOUGHT:"Gondolat", WORK:"Munkaanyag", OTHER:"Egyéb" };
+  var CAT_VAR = { EVENT:"--c-event", DECISION:"--c-decision", THOUGHT:"--c-thought", WORK:"--c-work", OTHER:"--c-other" };
+  var MONTHS = ["Január","Február","Március","Április","Május","Június","Július","Augusztus","Szeptember","Október","November","December"];
+  var CHIP_DEFS = [
+    {k:null, label:"Mind"},
+    {k:"EVENT", label:"Esemény"},
+    {k:"DECISION", label:"Döntés"},
+    {k:"THOUGHT", label:"Gondolat"},
+    {k:"WORK", label:"Munkaanyag"},
+    {k:"OTHER", label:"Egyéb"}
+  ];
+  var MAX_FILE_BYTES = 10 * 1024 * 1024;
+  var TEXT_TYPES = ["text/plain","text/markdown","text/csv","application/json","text/x-markdown"];
+  function isTextType(ct){
+    if (typeof ct !== "string") return false;
+    if (TEXT_TYPES.indexOf(ct) !== -1) return true;
+    return ct.indexOf("text/") === 0;
+  }
+  function isImage(ct){ return typeof ct === "string" && ct.indexOf("image/") === 0; }
+
+  var activeKind = null;
+  var searchTerm = "";
+  var docs = []; // [{id, data}]
+  var docsById = {};
+  var pendingFiles = []; // File objects staged before save
+  var pendingAttachments = []; // resolved {id,name,contentType,dataUrl} ready to attach
+  var importedPackage = null; // parsed, validated package waiting for confirmation
+  var checkPanePlainRecords = []; // raw, unencrypted entries found by the pre-login "check" diagnostic, ready to export
+
+  // ---------- id generator (works without a secure context) ----------
+  function genId(){
+    try{
+      if (window.crypto && window.crypto.getRandomValues){
+        var buf = new Uint8Array(16);
+        window.crypto.getRandomValues(buf);
+        var hex = Array.prototype.map.call(buf, function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+        return hex.slice(0,8)+"-"+hex.slice(8,12)+"-"+hex.slice(12,16)+"-"+hex.slice(16,20)+"-"+hex.slice(20,32);
+      }
+    }catch(e){}
+    return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,10);
+  }
+
+  // ---------- local storage: IndexedDB (entries store holds ENCRYPTED blobs) ----------
+  var DB_NAME = "hexa-local-db";
+  var DB_STORE = "entries";
+  var PROFILE_STORE = "profile";
+  var dbPromise = null;
+  var liveDb = null; // the currently-open IDBDatabase connection, if any
+  function openDb(){
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function(resolve, reject){
+      if (!window.indexedDB){ reject(new Error("Az eszköz böngészője nem támogatja a helyi adattárolást.")); return; }
+      var req = window.indexedDB.open(DB_NAME, 2);
+      req.onupgradeneeded = function(){
+        var db = req.result;
+        if (!db.objectStoreNames.contains(DB_STORE)){
+          db.createObjectStore(DB_STORE, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(PROFILE_STORE)){
+          db.createObjectStore(PROFILE_STORE, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = function(){
+        var db = req.result;
+        liveDb = db;
+        // If something else (another tab, or our own wipe) wants to delete/upgrade
+        // this database, close our connection immediately so that request isn't
+        // blocked forever — a blocked delete also deadlocks any open() queued after it.
+        db.onversionchange = function(){ try{ db.close(); }catch(e){} if (liveDb === db) liveDb = null; dbPromise = null; };
+        resolve(db);
+      };
+      req.onerror = function(){ reject(req.error || new Error("Nem sikerült megnyitni a helyi adatbázist.")); };
+    });
+    return dbPromise;
+  }
+  function rawGetAll(storeName){
+    return openDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readonly");
+        var req = tx.objectStore(storeName).getAll();
+        req.onsuccess = function(){ resolve(req.result || []); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+  function rawPut(storeName, record){
+    return openDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put(record);
+        tx.oncomplete = function(){ resolve(record); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function rawPutMany(storeName, records){
+    return openDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readwrite");
+        var store = tx.objectStore(storeName);
+        records.forEach(function(r){ store.put(r); });
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function dbDelete(id){
+    return openDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(DB_STORE, "readwrite");
+        tx.objectStore(DB_STORE).delete(id);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function wipeAllLocalData(){
+    // Close our own open connection first — deleteDatabase() blocks forever
+    // while any connection (including our own) stays open, which would also
+    // deadlock the very next openDb() call queued behind it.
+    if (liveDb){ try{ liveDb.close(); }catch(e){} liveDb = null; }
+    dbPromise = null;
+    return new Promise(function(resolve, reject){
+      var req = window.indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = function(){ resolve(); };
+      req.onerror = function(){ reject(req.error || new Error("A törlés nem sikerült.")); };
+      req.onblocked = function(){ resolve(); };
+    });
+  }
+
+  // ---------- encryption (Web Crypto: PBKDF2 -> AES-GCM) ----------
+  // The password never leaves the device and is never stored — only a
+  // derived key is used, in memory (and, for convenience within the same
+  // open browser tab, in sessionStorage, cleared when the tab/app closes).
+  var hasCrypto = !!(window.crypto && window.crypto.subtle);
+  var sessionKey = null; // CryptoKey, held only while unlocked
+  var PBKDF2_ITER = 150000;
+
+  function b64FromBytes(bytes){
+    var bin = "";
+    for (var i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+    return window.btoa(bin);
+  }
+  function bytesFromB64(b64){
+    var bin = window.atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  function deriveKey(password, saltBytes){
+    var enc = new TextEncoder();
+    return window.crypto.subtle.importKey("raw", enc.encode(password), { name:"PBKDF2" }, false, ["deriveKey"])
+      .then(function(keyMaterial){
+        return window.crypto.subtle.deriveKey(
+          { name:"PBKDF2", salt: saltBytes, iterations: PBKDF2_ITER, hash:"SHA-256" },
+          keyMaterial,
+          { name:"AES-GCM", length:256 },
+          true,
+          ["encrypt","decrypt"]
+        );
+      });
+  }
+  function encryptJson(key, obj){
+    var enc = new TextEncoder();
+    var iv = window.crypto.getRandomValues(new Uint8Array(12));
+    return window.crypto.subtle.encrypt({ name:"AES-GCM", iv: iv }, key, enc.encode(JSON.stringify(obj)))
+      .then(function(ctBuf){
+        return { iv: b64FromBytes(iv), ct: b64FromBytes(new Uint8Array(ctBuf)) };
+      });
+  }
+  function decryptJson(key, ivB64, ctB64){
+    var dec = new TextDecoder();
+    return window.crypto.subtle.decrypt({ name:"AES-GCM", iv: bytesFromB64(ivB64) }, key, bytesFromB64(ctB64))
+      .then(function(ptBuf){ return JSON.parse(dec.decode(ptBuf)); });
+  }
+
+  // ---------- entries: encrypt-on-write, decrypt-on-read ----------
+  function dbAll(){
+    return rawGetAll(DB_STORE).then(function(records){
+      if (!hasCrypto || !sessionKey){
+        // No usable encryption on this browser/mode: records were stored
+        // as plain entries (see dbPut fallback below).
+        return records;
+      }
+      return Promise.all(records.map(function(r){
+        if (r.iv && r.ct){
+          return decryptJson(sessionKey, r.iv, r.ct).then(function(plain){
+            plain.id = r.id;
+            return plain;
+          }).catch(function(){ return null; }); // wrong key / corrupt record -> skip
+        }
+        return r; // already-plain record (fallback mode)
+      })).then(function(list){ return list.filter(Boolean); });
+    });
+  }
+  function dbPut(entry){
+    if (hasCrypto && sessionKey){
+      return encryptJson(sessionKey, entry).then(function(enc){
+        return rawPut(DB_STORE, { id: entry.id, iv: enc.iv, ct: enc.ct });
+      }).then(function(){ return entry; });
+    }
+    return rawPut(DB_STORE, entry);
+  }
+  function dbPutMany(entries){
+    if (hasCrypto && sessionKey){
+      return Promise.all(entries.map(function(e){
+        return encryptJson(sessionKey, e).then(function(enc){ return { id:e.id, iv:enc.iv, ct:enc.ct }; });
+      })).then(function(records){ return rawPutMany(DB_STORE, records); });
+    }
+    return rawPutMany(DB_STORE, entries);
+  }
+
+  function fileToDataUrl(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){ resolve(reader.result); };
+      reader.onerror = function(){ reject(reader.error || new Error("Nem sikerült beolvasni a fájlt.")); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function hashInt(str){
+    var h = 0;
+    for (var i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) | 0; }
+    return Math.abs(h);
+  }
+
+  function fmtDate(iso){
+    try{
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      var dd = String(d.getUTCDate()).padStart(2,"0");
+      var mm = String(d.getUTCMonth()+1).padStart(2,"0");
+      return d.getUTCFullYear() + "." + mm + "." + dd;
+    }catch(e){ return ""; }
+  }
+  function monthKey(iso){
+    try{
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return "ismeretlen";
+      return d.getUTCFullYear() + "-" + String(d.getUTCMonth()+1).padStart(2,"0");
+    }catch(e){ return "ismeretlen"; }
+  }
+  function monthLabel(key){
+    if (key === "ismeretlen") return "Ismeretlen időpont";
+    var parts = key.split("-");
+    return MONTHS[parseInt(parts[1],10)-1] + " " + parts[0];
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function searchHaystack(d){
+    var parts = [ d.title, d.body, d.category, CAT_LABEL[d.category], d.importedFrom, fmtDate(d.date) ];
+    return parts.filter(Boolean).join(" ").toLocaleLowerCase("hu");
+  }
+
+  function matches(d){
+    if (activeKind && d.category !== activeKind) return false;
+    if (!searchTerm) return true;
+    return searchHaystack(d).indexOf(searchTerm) !== -1;
+  }
+
+  function visibleEntries(){
+    return docs.filter(function(e){ return matches(e.data); });
+  }
+
+  function render(){
+    var spine = document.getElementById("spine");
+    var sorted = docs.slice().sort(function(a,b){
+      var da = a.data.date || "", db2 = b.data.date || "";
+      return da < db2 ? -1 : da > db2 ? 1 : 0;
+    });
+
+    document.getElementById("countPill").textContent = sorted.length + " bejegyzés";
+
+    if (sorted.length === 0){
+      spine.innerHTML = "";
+      var empty = document.getElementById("emptyState");
+      empty.hidden = false;
+      empty.innerHTML = 'Még nincs bejegyzésed.<small>A jobb alsó "+" gombbal rögzítheted az elsőt — csak a te eszközödön tárolódik.</small>';
+      return;
+    }
+    document.getElementById("emptyState").hidden = true;
+
+    var html = "";
+    var lastMonth = null;
+    docsById = {};
+    sorted.forEach(function(entry){
+      docsById[entry.id] = entry.data;
+      var d = entry.data;
+      var mk = monthKey(d.date);
+      if (mk !== lastMonth){
+        html += '<div class="month">' + monthLabel(mk) + '</div>';
+        lastMonth = mk;
+      }
+      var catVar = CAT_VAR[d.category] || "--ink-faint";
+      var h = hashInt(entry.id);
+      var orbSize = 9 + (h % 7);
+      var jitter = ((h % 9) - 4);
+      var hidden = !matches(d);
+      var attCount = (d.attachments && d.attachments.length) || 0;
+      html += '<div class="node' + (hidden ? ' dim' : '') + '" data-id="' + escapeHtml(entry.id) + '" style="transform:translateX(' + jitter + 'px)">' +
+        '<div class="orb-col"><div class="orb" style="--orb-size:' + orbSize + 'px;--cc:var(' + catVar + ')"></div></div>' +
+        '<div class="card">' +
+          '<div class="row1"><span class="date">' + fmtDate(d.date) + '</span>' +
+          '<span class="cat-tag" style="--cc:var(' + catVar + ')">' + (CAT_LABEL[d.category] || d.category || "") + '</span>' +
+          '</div>' +
+          '<div class="title">' + escapeHtml(d.title || "(cím nélkül)") + '</div>' +
+          '<div class="meta">' +
+            (d.importedFrom ? '<span class="origin-tag">importálva: <b>' + escapeHtml(d.importedFrom) + '</b></span>' : '') +
+            (attCount ? '<span class="clip">📎 ' + attCount + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    spine.innerHTML = html;
+  }
+
+  function renderChips(){
+    var el = document.getElementById("chips");
+    el.innerHTML = "";
+    CHIP_DEFS.forEach(function(c){
+      var b = document.createElement("div");
+      b.className = "chip";
+      b.textContent = c.label;
+      b.setAttribute("data-on", (activeKind === c.k) ? "1" : "0");
+      b.addEventListener("click", function(){
+        activeKind = c.k;
+        renderChips();
+        render();
+      });
+      el.appendChild(b);
+    });
+  }
+
+  document.getElementById("search").addEventListener("input", function(e){
+    searchTerm = e.target.value.trim().toLocaleLowerCase("hu");
+    render();
+  });
+
+  // ---------- detail sheet ----------
+  var detailOverlay = document.getElementById("detailOverlay");
+  var detailOpenId = null;
+
+  function renderAttachments(attachments){
+    var container = document.getElementById("d-attachments");
+    if (!attachments.length){ container.innerHTML = ""; return; }
+
+    var html = '<div class="attach-label">Csatolmányok (' + attachments.length + ')</div>';
+    attachments.forEach(function(a, idx){
+      var name = escapeHtml(a.name || (isImage(a.contentType) ? "kép" : "fájl"));
+      if (isImage(a.contentType)){
+        html += '<div class="attach-block">' +
+          '<div class="attach-filename">' + name + '</div>' +
+          '<a href="' + a.dataUrl + '" target="_blank" rel="noopener"><img class="attach-img-full" src="' + a.dataUrl + '" alt="' + name + '" /></a>' +
+        '</div>';
+      } else if (isTextType(a.contentType)){
+        var text = "";
+        try{ text = decodeURIComponent(escape(window.atob(a.dataUrl.split(",")[1] || ""))); }catch(e){ text = "(a tartalom nem jeleníthető meg itt)"; }
+        html += '<div class="attach-block">' +
+          '<div class="attach-filename">' + name + '</div>' +
+          '<div class="attach-text">' + escapeHtml(text) + '</div>' +
+        '</div>';
+      } else {
+        html += '<div class="attach-block">' +
+          '<a class="attach-doc" href="' + a.dataUrl + '" download="' + name + '">📄 <span class="name">' + name + '</span><span style="color:var(--ink-faint);margin-left:4px;">letöltés / megnyitás</span></a>' +
+        '</div>';
+      }
+    });
+    container.innerHTML = html;
+  }
+
+  function openDetail(id){
+    var d = docsById[id];
+    if (!d) return;
+    detailOpenId = id;
+    if (typeof resetDeleteArm === "function") resetDeleteArm();
+    document.getElementById("d-date").textContent = fmtDate(d.date);
+    document.getElementById("detailTitle").textContent = d.title || "(cím nélkül)";
+
+    renderAttachments(d.attachments || []);
+
+    var body = "";
+    if (d.body){
+      body += '<div class="detail-body">' + escapeHtml(d.body) + '</div>';
+    } else {
+      body += '<div class="detail-empty">Ehhez a bejegyzéshez nincs rögzített szöveg.</div>';
+    }
+    document.getElementById("d-body").innerHTML = body;
+
+    var rows = "";
+    var catVar = CAT_VAR[d.category] || "--ink-faint";
+    rows += '<div class="detail-kv"><span class="k">Kategória</span><span class="v accentv" style="--dc:var(' + catVar + ')">' + (CAT_LABEL[d.category] || d.category || "—") + '</span></div>';
+    if (d.importedFrom){
+      rows += '<div class="detail-kv"><span class="k">Forrás</span><span class="v">' + escapeHtml(d.importedFrom) + '</span></div>';
+    }
+    document.getElementById("d-rows").innerHTML = rows;
+
+    detailOverlay.setAttribute("data-open","1");
+  }
+  function closeDetail(){
+    detailOverlay.setAttribute("data-open","0");
+    detailOpenId = null;
+    if (typeof resetDeleteArm === "function") resetDeleteArm();
+  }
+
+  document.getElementById("spine").addEventListener("click", function(e){
+    var node = e.target.closest(".node");
+    if (!node) return;
+    openDetail(node.getAttribute("data-id"));
+  });
+  document.getElementById("closeDetail").addEventListener("click", closeDetail);
+  detailOverlay.addEventListener("click", function(e){ if (e.target === detailOverlay) closeDetail(); });
+
+  // Inline two-step confirm (never relies on window.confirm, which some
+  // embedding contexts silently refuse to show at all).
+  var deleteArmed = false;
+  var deleteArmTimer = null;
+  var btnDeleteOne = document.getElementById("btnDeleteOne");
+  function resetDeleteArm(){
+    deleteArmed = false;
+    btnDeleteOne.textContent = "Törlés";
+    if (deleteArmTimer) clearTimeout(deleteArmTimer);
+  }
+  btnDeleteOne.addEventListener("click", function(){
+    if (!detailOpenId) return;
+    if (!deleteArmed){
+      deleteArmed = true;
+      btnDeleteOne.textContent = "Biztosan? Kattints újra";
+      deleteArmTimer = setTimeout(resetDeleteArm, 4000);
+      return;
+    }
+    resetDeleteArm();
+    var idToDelete = detailOpenId;
+    dbDelete(idToDelete).then(function(){
+      docs = docs.filter(function(e){ return e.id !== idToDelete; });
+      closeDetail();
+      render();
+      showToast("Bejegyzés törölve.");
+    }).catch(function(err){
+      showToast("A törlés nem sikerült: " + err.message);
+    });
+  });
+
+  document.getElementById("btnShareOne").addEventListener("click", function(){
+    if (!detailOpenId) return;
+    var entry = docs.find(function(e){ return e.id === detailOpenId; });
+    if (!entry) return;
+    closeDetail();
+    openShare();
+    switchShareTab("send");
+    buildExport([entry]);
+  });
+
+  // ---------- add modal ----------
+  var overlay = document.getElementById("overlay");
+  var form = document.getElementById("addForm");
+  var fileInput = document.getElementById("f-files");
+  var fileDrop = document.getElementById("fileDrop");
+
+  function openModal(){
+    form.reset();
+    pendingFiles = [];
+    renderPendingFiles();
+    document.getElementById("formErr").textContent = "";
+    var today = new Date();
+    document.getElementById("f-date").value = today.toISOString().slice(0,10);
+    overlay.setAttribute("data-open","1");
+  }
+  function closeModal(){ overlay.setAttribute("data-open","0"); }
+
+  document.getElementById("fabAdd").addEventListener("click", openModal);
+  document.getElementById("cancelAdd").addEventListener("click", closeModal);
+  overlay.addEventListener("click", function(e){ if (e.target === overlay) closeModal(); });
+
+  fileDrop.addEventListener("click", function(){ fileInput.click(); });
+  fileInput.addEventListener("change", function(){
+    var errEl = document.getElementById("formErr");
+    Array.prototype.forEach.call(fileInput.files, function(f){
+      if (f.size > MAX_FILE_BYTES){
+        errEl.textContent = '"' + f.name + '" túl nagy (max. 10 MB / fájl).';
+        return;
+      }
+      pendingFiles.push(f);
+    });
+    fileInput.value = "";
+    renderPendingFiles();
+  });
+
+  function renderPendingFiles(){
+    var wrap = document.getElementById("pendingFiles");
+    wrap.innerHTML = "";
+    pendingFiles.forEach(function(f, idx){
+      var chip = document.createElement("div");
+      chip.className = "pending-chip";
+      if (f.type && f.type.indexOf("image/") === 0){
+        var img = document.createElement("img");
+        img.src = URL.createObjectURL(f);
+        chip.appendChild(img);
+      } else {
+        var icon = document.createElement("span");
+        icon.textContent = "📄";
+        chip.appendChild(icon);
+      }
+      var name = document.createElement("span");
+      name.className = "pn";
+      name.textContent = f.name;
+      chip.appendChild(name);
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "✕";
+      rm.addEventListener("click", function(){
+        pendingFiles.splice(idx,1);
+        renderPendingFiles();
+      });
+      chip.appendChild(rm);
+      wrap.appendChild(chip);
+    });
+  }
+
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.setAttribute("data-show","1");
+    setTimeout(function(){ t.setAttribute("data-show","0"); }, 2600);
+  }
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var errEl = document.getElementById("formErr");
+    errEl.textContent = "";
+    var title = document.getElementById("f-title").value.trim();
+    if (!title){ errEl.textContent = "A cím megadása kötelező."; return; }
+    var category = document.getElementById("f-category").value;
+    var date = document.getElementById("f-date").value || new Date().toISOString().slice(0,10);
+    var body = document.getElementById("f-body").value.trim();
+
+    var saveBtn = document.getElementById("saveAdd");
+    saveBtn.disabled = true;
+    saveBtn.textContent = pendingFiles.length ? "Mentés…" : "Mentés…";
+
+    Promise.all(pendingFiles.map(function(f){
+      return fileToDataUrl(f).then(function(dataUrl){
+        return { id: genId(), name: f.name, contentType: f.type || "application/octet-stream", dataUrl: dataUrl };
+      });
+    })).then(function(attachments){
+      var entry = {
+        id: genId(),
+        title: title,
+        category: category,
+        date: date,
+        body: body,
+        createdAt: new Date().toISOString(),
+        attachments: attachments,
+        importedFrom: null
+      };
+      return dbPut(entry).then(function(){ return entry; });
+    }).then(function(entry){
+      docs.push({ id: entry.id, data: entry });
+      closeModal();
+      showToast("Bejegyzés mentve — csak ezen az eszközön.");
+      render();
+    }).catch(function(err){
+      errEl.textContent = "A mentés nem sikerült: " + err.message;
+    }).finally(function(){
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Mentés";
+    });
+  });
+
+  // ---------- share / export ----------
+  var shareOverlay = document.getElementById("shareOverlay");
+  function openShare(){ shareOverlay.setAttribute("data-open","1"); }
+  function closeShare(){ shareOverlay.setAttribute("data-open","0"); }
+  document.getElementById("closeShare").addEventListener("click", closeShare);
+  shareOverlay.addEventListener("click", function(e){ if (e.target === shareOverlay) closeShare(); });
+  document.getElementById("btnShare").addEventListener("click", function(){
+    document.getElementById("exportResult").hidden = true;
+    document.getElementById("importPreviewWrap").hidden = true;
+    document.getElementById("importReplaceWrap").hidden = true;
+    document.getElementById("importErr").textContent = "";
+    document.getElementById("importText").value = "";
+    importedPackage = null;
+    switchShareTab("send");
+    openShare();
+  });
+
+  function switchShareTab(which){
+    document.querySelectorAll(".share-tab").forEach(function(t){
+      t.setAttribute("data-on", (t.getAttribute("data-tab") === which) ? "1" : "0");
+    });
+    document.getElementById("pane-send").hidden = (which !== "send");
+    document.getElementById("pane-receive").hidden = (which !== "receive");
+  }
+  document.querySelectorAll(".share-tab").forEach(function(tab){
+    tab.addEventListener("click", function(){ switchShareTab(tab.getAttribute("data-tab")); });
+  });
+
+  // Works both as a normal web page (Blob + <a download>) and, if ever embedded
+  // in a host that exposes a sandboxed "downloads" capability instead (which
+  // blocks plain anchor downloads), falls back to that capability automatically.
+  function saveFile(filename, text, mime){
+    if (window.claude && typeof window.claude.use === "function"){
+      window.claude.use("downloads").then(function(d){
+        if (d && typeof d.save === "function"){
+          return d.save({ filename: filename, data: text });
+        }
+        throw new Error("no-downloads-capability");
+      }).catch(function(){ saveFileViaBlob(filename, text, mime); });
+      return;
+    }
+    saveFileViaBlob(filename, text, mime);
+  }
+  function saveFileViaBlob(filename, text, mime){
+    try{
+      var blob = new Blob([text], { type: mime || "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    }catch(e){
+      showToast("A letöltés nem sikerült ezen a böngészőn — próbáld a „Másolás vágólapra” opciót.");
+    }
+  }
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(resolve, reject){
+      try{
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error("copy failed"));
+      }catch(e){ reject(e); }
+    });
+  }
+
+  var lastExportJson = null;
+  function buildExport(entries){
+    var label = document.getElementById("share-label").value.trim();
+    var pkg = {
+      v: 1,
+      app: "HEXA",
+      exportedAt: new Date().toISOString(),
+      senderLabel: label || null,
+      entries: entries.map(function(e){ return e.data; })
+    };
+    lastExportJson = JSON.stringify(pkg);
+    document.getElementById("exportText").value = lastExportJson;
+    document.getElementById("exportResult").hidden = false;
+    showToast(entries.length + " bejegyzés előkészítve a megosztáshoz.");
+  }
+
+  document.getElementById("btnExportAll").addEventListener("click", function(){
+    if (!docs.length){ showToast("Nincs még megosztható bejegyzésed."); return; }
+    buildExport(docs);
+  });
+  document.getElementById("btnExportFiltered").addEventListener("click", function(){
+    var v = visibleEntries();
+    if (!v.length){ showToast("A jelenlegi szűrésnek nem felel meg egyetlen bejegyzés sem."); return; }
+    buildExport(v);
+  });
+  document.getElementById("btnDownloadExport").addEventListener("click", function(){
+    if (!lastExportJson) return;
+    var stamp = new Date().toISOString().slice(0,10);
+    saveFile("hexa-megosztas-" + stamp + ".hexa.json", lastExportJson, "application/json");
+  });
+  document.getElementById("btnCopyExport").addEventListener("click", function(){
+    if (!lastExportJson) return;
+    copyText(lastExportJson).then(function(){
+      showToast("Vágólapra másolva — illeszd be bárhova.");
+    }).catch(function(){
+      showToast("A másolás nem sikerült — jelöld ki kézzel a szövegmezőt és másold (Ctrl/Cmd+C).");
+    });
+  });
+
+  // ---------- import ----------
+  function parseImportPayload(text){
+    var errEl = document.getElementById("importErr");
+    errEl.textContent = "";
+    var pkg;
+    try{ pkg = JSON.parse(text); }
+    catch(e){ errEl.textContent = "Ez nem egy érvényes HEXA megosztás-szöveg (nem olvasható be JSON-ként)."; return; }
+    if (!pkg || !Array.isArray(pkg.entries)){
+      errEl.textContent = "Ez nem egy érvényes HEXA megosztás-csomag.";
+      return;
+    }
+    importedPackage = pkg;
+    var prev = document.getElementById("importPreview");
+    prev.innerHTML = pkg.entries.map(function(e){
+      var attN = (e.attachments && e.attachments.length) || 0;
+      return '<div class="ip-row"><b>' + escapeHtml(e.title || "(cím nélkül)") + '</b> — ' + escapeHtml(fmtDate(e.date)) +
+        (attN ? ' · 📎 ' + attN : '') + '</div>';
+    }).join("") || '<div class="ip-row">(üres csomag)</div>';
+    document.getElementById("importOriginOverride").value = pkg.senderLabel || "";
+    document.getElementById("importPreviewWrap").hidden = false;
+    updateImportReplaceUI();
+  }
+
+  function currentImportOrigin(){
+    var overrideVal = document.getElementById("importOriginOverride").value.trim();
+    return overrideVal || (importedPackage && importedPackage.senderLabel) || "ismeretlen forrás";
+  }
+  function updateImportReplaceUI(){
+    var origin = currentImportOrigin();
+    var existing = docs.filter(function(d){ return d.data && d.data.importedFrom === origin; });
+    var wrap = document.getElementById("importReplaceWrap");
+    if (existing.length){
+      document.getElementById("importReplaceLabel").textContent = origin;
+      document.getElementById("importReplaceCount").textContent = existing.length;
+      wrap.hidden = false;
+    } else {
+      wrap.hidden = true;
+    }
+  }
+  document.getElementById("importOriginOverride").addEventListener("input", updateImportReplaceUI);
+
+  document.getElementById("importDrop").addEventListener("click", function(){ document.getElementById("importFile").click(); });
+  document.getElementById("importFile").addEventListener("change", function(){
+    var f = this.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){ parseImportPayload(String(reader.result || "")); };
+    reader.onerror = function(){ document.getElementById("importErr").textContent = "A fájl nem olvasható be."; };
+    reader.readAsText(f);
+    this.value = "";
+  });
+  document.getElementById("btnParseImportText").addEventListener("click", function(){
+    var text = document.getElementById("importText").value.trim();
+    if (!text){ document.getElementById("importErr").textContent = "Illessz be egy megosztás-szöveget."; return; }
+    parseImportPayload(text);
+  });
+
+  document.getElementById("btnConfirmImport").addEventListener("click", function(){
+    if (!importedPackage) return;
+    var origin = currentImportOrigin();
+    var replaceWrap = document.getElementById("importReplaceWrap");
+    var shouldReplace = !replaceWrap.hidden && document.getElementById("importReplaceExisting").checked;
+    var toReplace = shouldReplace ? docs.filter(function(d){ return d.data && d.data.importedFrom === origin; }) : [];
+    var newEntries = importedPackage.entries.map(function(src){
+      return {
+        id: genId(),
+        title: src.title || "",
+        category: CAT_LABEL[src.category] ? src.category : "OTHER",
+        date: src.date || new Date().toISOString().slice(0,10),
+        body: src.body || "",
+        createdAt: new Date().toISOString(),
+        attachments: Array.isArray(src.attachments) ? src.attachments.map(function(a){
+          return { id: genId(), name: a.name || "", contentType: a.contentType || "application/octet-stream", dataUrl: a.dataUrl || "" };
+        }) : [],
+        importedFrom: origin
+      };
+    });
+    Promise.all(toReplace.map(function(d){ return dbDelete(d.id); })).then(function(){
+      if (toReplace.length){
+        var removedIds = {};
+        toReplace.forEach(function(d){ removedIds[d.id] = true; });
+        docs = docs.filter(function(d){ return !removedIds[d.id]; });
+      }
+      return dbPutMany(newEntries);
+    }).then(function(){
+      newEntries.forEach(function(e){ docs.push({ id: e.id, data: e }); });
+      render();
+      closeShare();
+      var msg = newEntries.length + " bejegyzés hozzáadva (forrás: " + origin + ").";
+      if (toReplace.length) msg = toReplace.length + " régi bejegyzés lecserélve, " + msg.toLowerCase();
+      showToast(msg);
+    }).catch(function(err){
+      showToast("A hozzáadás nem sikerült: " + err.message);
+    });
+  });
+
+  // ---------- profile (name + password lock) ----------
+  function getProfile(){
+    return rawGetAll(PROFILE_STORE).then(function(list){ return list[0] || null; });
+  }
+  function saveProfile(profile){
+    return rawPut(PROFILE_STORE, profile);
+  }
+
+  var SESSION_STORAGE_KEY = "hexa_session_key_v1"; // sessionStorage: cleared when the tab/app closes
+  var REMEMBER_STORAGE_KEY = "hexa_remember_key_v1"; // localStorage: survives closing and reopening the app
+  var REMEMBER_PREF_KEY = "hexa_remember_pref_v1"; // localStorage: just the checkbox's last state (not the key itself)
+  var currentProfile = null;
+
+  function getRememberPref(){
+    try{ return window.localStorage.getItem(REMEMBER_PREF_KEY) === "1"; }catch(e){ return false; }
+  }
+  function setRememberPref(on){
+    try{ window.localStorage.setItem(REMEMBER_PREF_KEY, on ? "1" : "0"); }catch(e){}
+  }
+
+  // When `remember` is true, the derived key is kept in localStorage so the
+  // app opens without the password even after fully closing and reopening it
+  // on this device. Otherwise it's kept in sessionStorage only (convenience
+  // within the same open tab — cleared as soon as the tab/app closes).
+  function persistSessionKey(key, remember){
+    if (!hasCrypto || !key) return Promise.resolve();
+    return window.crypto.subtle.exportKey("raw", key).then(function(raw){
+      var b64 = b64FromBytes(new Uint8Array(raw));
+      try{
+        if (remember){
+          window.localStorage.setItem(REMEMBER_STORAGE_KEY, b64);
+          window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        } else {
+          window.sessionStorage.setItem(SESSION_STORAGE_KEY, b64);
+          window.localStorage.removeItem(REMEMBER_STORAGE_KEY);
+        }
+      }catch(e){}
+    }).catch(function(){});
+  }
+  function clearPersistedSessionKey(){
+    try{ window.sessionStorage.removeItem(SESSION_STORAGE_KEY); }catch(e){}
+    try{ window.localStorage.removeItem(REMEMBER_STORAGE_KEY); }catch(e){}
+  }
+  function tryRestoreSession(profile){
+    if (!hasCrypto || profile.mode !== "crypto") return Promise.resolve(false);
+    var stored;
+    try{ stored = window.localStorage.getItem(REMEMBER_STORAGE_KEY) || window.sessionStorage.getItem(SESSION_STORAGE_KEY); }catch(e){ stored = null; }
+    if (!stored) return Promise.resolve(false);
+    return window.crypto.subtle.importKey("raw", bytesFromB64(stored), { name:"AES-GCM" }, true, ["encrypt","decrypt"])
+      .then(function(key){
+        return decryptJson(key, profile.verifierIv, profile.verifierCt).then(function(v){
+          if (v && v.ok === true){ sessionKey = key; return true; }
+          return false;
+        });
+      }).catch(function(){ return false; });
+  }
+
+  function doSetup(name, password, email, authServerUrl){
+    var extra = { username:name, email: email || null, authServerUrl: authServerUrl || null };
+    if (hasCrypto){
+      var saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
+      return deriveKey(password, saltBytes).then(function(key){
+        return encryptJson(key, { ok:true }).then(function(enc){
+          sessionKey = key;
+          var profile = { id:"local", mode:"crypto", salt:b64FromBytes(saltBytes), verifierIv:enc.iv, verifierCt:enc.ct };
+          Object.keys(extra).forEach(function(k){ profile[k] = extra[k]; });
+          return profile;
+        });
+      }).then(function(profile){ return saveProfile(profile).then(function(){ return profile; }); });
+    }
+    var profile = { id:"local", mode:"plain", checksum: hashInt(password + "::hexa-local-salt") };
+    Object.keys(extra).forEach(function(k){ profile[k] = extra[k]; });
+    return saveProfile(profile).then(function(){ return profile; });
+  }
+
+  // ---------- auth server helpers (account/email verification only — never notes) ----------
+  var AUTH_SERVER_STORAGE_KEY = "hexa_auth_server_url";
+  function getStoredAuthServerUrl(){
+    try{ return window.localStorage.getItem(AUTH_SERVER_STORAGE_KEY) || ""; }catch(e){ return ""; }
+  }
+  function setStoredAuthServerUrl(url){
+    try{ window.localStorage.setItem(AUTH_SERVER_STORAGE_KEY, url); }catch(e){}
+  }
+  function normalizeServerUrl(raw){
+    var s = (raw || "").trim();
+    if (!s) return "";
+    if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+    return s.replace(/\/+$/,"");
+  }
+  function isValidEmailFormat(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s || ""); }
+  function authApi(baseUrl, path, opts){
+    opts = opts || {};
+    var url = baseUrl.replace(/\/+$/,"") + path;
+    var init = { method: opts.method || "GET", headers:{}, cache: "no-store" };
+    if (opts.body !== undefined){
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(opts.body);
+    }
+    return fetch(url, init).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(data){
+        if (!r.ok){ throw new Error((data && data.error) || ("Hiba a szerverrel (" + r.status + ")")); }
+        return data;
+      });
+    }).catch(function(err){
+      if (err instanceof TypeError){
+        throw new Error("Nem sikerült elérni a hitelesítő szervert ezen a címen. Ellenőrizd az URL-t, és hogy a szerver fut-e.");
+      }
+      throw err;
+    });
+  }
+  var pendingSetup = null; // { name, email, password, authServerUrl } — only held in memory until email verified
+  function doUnlock(profile, password){
+    if (profile.mode === "crypto" && hasCrypto){
+      var saltBytes = bytesFromB64(profile.salt);
+      return deriveKey(password, saltBytes).then(function(key){
+        return decryptJson(key, profile.verifierIv, profile.verifierCt).then(function(v){
+          if (!v || v.ok !== true) throw new Error("bad");
+          sessionKey = key;
+          return true;
+        });
+      }).catch(function(){ return false; });
+    }
+    return Promise.resolve(hashInt(password + "::hexa-local-salt") === profile.checksum);
+  }
+
+  function showLock(){ document.getElementById("lockScreen").hidden = false; document.getElementById("appRoot").hidden = true; }
+  function showApp(){ document.getElementById("lockScreen").hidden = true; document.getElementById("appRoot").hidden = false; }
+
+  function hideAllLockPanes(){
+    document.getElementById("setupPane").hidden = true;
+    document.getElementById("verifyPane").hidden = true;
+    document.getElementById("unlockPane").hidden = true;
+    document.getElementById("forgotPane").hidden = true;
+    document.getElementById("checkPane").hidden = true;
+  }
+  function showSetupPane(){
+    showLock();
+    hideAllLockPanes();
+    document.getElementById("setupPane").hidden = false;
+    document.getElementById("su-server").value = getStoredAuthServerUrl();
+    document.getElementById("su-remember").checked = getRememberPref();
+    var warn = document.querySelector("#setupPane .auth-warn");
+    if (warn && !hasCrypto){
+      warn.textContent = "⚠️ Ezen a böngészőn/módon nem érhető el a valódi titkosítás — a jelszó itt csak belépő-képernyőként védi az appot, nem titkosítja ténylegesen az adatokat. A teljes védelemhez telepítsd az appot (Kezdőképernyőhöz adás / Hozzáadás a Dockhoz) és onnan nyisd meg.";
+    }
+  }
+  function showVerifyPane(email){
+    showLock();
+    hideAllLockPanes();
+    document.getElementById("verifyPane").hidden = false;
+    document.getElementById("verifyEmailLabel").textContent = email;
+    document.getElementById("verifyErr").textContent = "";
+  }
+  function showUnlockPane(profile){
+    showLock();
+    hideAllLockPanes();
+    document.getElementById("unlockPane").hidden = false;
+    document.getElementById("unlockGreeting").textContent = profile && profile.username
+      ? ("Üdv újra, " + profile.username + ".")
+      : "Üdv újra.";
+    document.getElementById("ul-pass").value = "";
+    document.getElementById("unlockErr").textContent = "";
+    document.getElementById("ul-remember").checked = getRememberPref();
+  }
+  function showForgotPane(){
+    showLock();
+    hideAllLockPanes();
+    document.getElementById("forgotPane").hidden = false;
+    document.getElementById("forgotIntro").innerHTML = "Visszaállító emailt küldünk a(z) <b>" + escapeHtml(currentProfile.email) + "</b> címre.";
+    document.getElementById("forgotStep1").hidden = false;
+    document.getElementById("forgotStep2").hidden = true;
+    document.getElementById("forgotErr1").textContent = "";
+    document.getElementById("forgotErr2").textContent = "";
+    document.getElementById("forgot-newpass").value = "";
+    document.getElementById("forgot-remember").checked = getRememberPref();
+  }
+
+  // Read-only diagnostic: looks directly at what's already sitting in this
+  // browser's local database, WITHOUT asking for a password and WITHOUT
+  // writing/deleting anything — so someone unsure whether old content is
+  // still on this device can check before going through registration.
+  function showCheckPane(){
+    showLock();
+    hideAllLockPanes();
+    document.getElementById("checkPane").hidden = false;
+    var resultEl = document.getElementById("checkResult");
+    resultEl.innerHTML = '<div class="check-summary">Ellenőrzés…</div>';
+    rawGetAll(DB_STORE).then(function(records){
+      var plain = records.filter(function(r){ return !(r.iv && r.ct); });
+      var encrypted = records.filter(function(r){ return r.iv && r.ct; });
+      var html = "";
+      if (records.length === 0){
+        html += '<div class="check-summary">Nem találtunk bejegyzést ezen az eszközön, ebben a böngészőben (ennél a linknél). Ha korábban egy másik böngészőben, vagy telepített ikonként nyitottad meg, próbáld meg onnan — a tárolás böngészőnként/módonként külön van.</div>';
+      } else {
+        html += '<div class="check-summary">Találtunk <b>' + records.length + ' bejegyzést</b> ezen az eszközön' +
+          (plain.length ? (', ebből <b>' + plain.length + '</b> jelszó nélküli (régebbi) formában') : '') +
+          (encrypted.length ? (plain.length ? ', ' : ', ebből ') + '<b>' + encrypted.length + '</b> jelszóval titkosítva' : '') +
+          '. Ezek nem vesznek el, és nem törlődnek azzal, hogy most regisztrálsz — a regisztráció/jelszó-beállítás külön van ettől a tárolótól, utána ugyanitt, a főképernyőn fognak megjelenni.</div>';
+        if (plain.length){
+          checkPanePlainRecords = plain;
+          html += '<div class="check-list">' + plain.slice(0, 30).map(function(r){
+            return '<div class="ci"><b>' + escapeHtml(r.title || "(cím nélkül)") + '</b><span>' + escapeHtml(fmtDate(r.date) || "") + (r.category ? " · " + escapeHtml(CAT_LABEL[r.category] || r.category) : "") + '</span></div>';
+          }).join("") + (plain.length > 30 ? '<div class="ci">… és még ' + (plain.length - 30) + '</div>' : '') + '</div>';
+          html += '<div class="check-summary">Ha ezt az adatot egy másik, önálló linken/eszközön is szeretnéd (pl. mert ott akarsz regisztrálni), itt mentheted ki — nem kell hozzá se jelszó, se regisztráció, se szerver.</div>';
+          html += '<div class="modal-actions" style="margin-top:0">' +
+            '<button type="button" class="btn primary" id="btnCheckExport" style="flex:1">⬇ Mentés .hexa.json fájlba</button>' +
+          '</div>' +
+          '<button type="button" class="btn" id="btnCheckCopyExport" style="width:100%;margin-top:8px" hidden>📋 Másolás vágólapra</button>' +
+          '<textarea class="share-textarea" id="checkExportText" readonly hidden style="margin-top:10px"></textarea>';
+        }
+        if (encrypted.length && !plain.length){
+          html += '<div class="check-summary">Ezek jelszóval vannak védve, ezért a tartalmuk itt nem jeleníthető meg, és innen nem exportálhatók — a megfelelő jelszóval tudod majd megnyitni és megosztani őket a feloldás utáni "Megosztás" gombbal.</div>';
+        }
+      }
+      resultEl.innerHTML = html;
+    }).catch(function(err){
+      resultEl.innerHTML = '<div class="check-summary">Nem sikerült megnyitni a helyi adattárolást: ' + escapeHtml(err.message) + '</div>';
+    });
+  }
+  document.getElementById("btnOpenCheck").addEventListener("click", showCheckPane);
+  document.getElementById("btnCheckBack").addEventListener("click", showSetupPane);
+  document.getElementById("checkPane").addEventListener("click", function(e){
+    if (e.target && e.target.id === "btnCheckExport"){
+      var pkg = {
+        v: 1, app: "HEXA", exportedAt: new Date().toISOString(),
+        senderLabel: null, entries: checkPanePlainRecords
+      };
+      var json = JSON.stringify(pkg);
+      var stamp = new Date().toISOString().slice(0,10);
+      saveFile("hexa-mentes-" + stamp + ".hexa.json", json, "application/json");
+      var ta = document.getElementById("checkExportText");
+      var copyBtn = document.getElementById("btnCheckCopyExport");
+      if (ta){ ta.value = json; ta.hidden = false; }
+      if (copyBtn) copyBtn.hidden = false;
+    } else if (e.target && e.target.id === "btnCheckCopyExport"){
+      var ta2 = document.getElementById("checkExportText");
+      if (!ta2) return;
+      copyText(ta2.value).then(function(){
+        showToast("Vágólapra másolva — illeszd be bárhova.");
+      }).catch(function(){
+        showToast("A másolás nem sikerült — jelöld ki kézzel a szövegmezőt és másold.");
+      });
+    }
+  });
+
+  function enterApp(profile){
+    currentProfile = profile;
+    showApp();
+    document.getElementById("scopeHint").textContent = profile.username
+      ? ("bejelentkezve: " + profile.username)
+      : "a saját eszközödön, önállóan";
+    dbAll().then(function(all){
+      docs = all.map(function(e){ return { id: e.id, data: e }; });
+      render();
+    }).catch(function(err){
+      var empty = document.getElementById("emptyState");
+      empty.hidden = false;
+      empty.innerHTML = 'Nem sikerült megnyitni a helyi adattárolást.<small>' + escapeHtml(err.message) + '</small>';
+    });
+  }
+
+  document.getElementById("setupForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var errEl = document.getElementById("setupErr");
+    errEl.textContent = "";
+    var name = document.getElementById("su-name").value.trim();
+    var email = document.getElementById("su-email").value.trim().toLowerCase();
+    var p1 = document.getElementById("su-pass").value;
+    var p2 = document.getElementById("su-pass2").value;
+    var serverUrl = normalizeServerUrl(document.getElementById("su-server").value);
+    if (!name){ errEl.textContent = "Add meg a neved."; return; }
+    if (email && !isValidEmailFormat(email)){ errEl.textContent = "Az email cím formátuma nem érvényes (vagy hagyd üresen)."; return; }
+    if (serverUrl && !email){ errEl.textContent = "Szerverrel történő regisztrációhoz adj meg egy email címet (vagy hagyd üresen a szerver mezőt is)."; return; }
+    if (p1.length < 4){ errEl.textContent = "A jelszó legalább 4 karakter legyen."; return; }
+    if (p1 !== p2){ errEl.textContent = "A két jelszó nem egyezik."; return; }
+    var btn = document.getElementById("setupBtn");
+    btn.disabled = true;
+
+    if (!serverUrl){
+      // Local-only setup: no auth server, no email verification. Works immediately on this device.
+      var remember = document.getElementById("su-remember").checked;
+      doSetup(name, p1, email || null, null).then(function(profile){
+        setRememberPref(remember);
+        return persistSessionKey(sessionKey, remember).then(function(){ enterApp(profile); });
+      }).catch(function(err){
+        errEl.textContent = err.message;
+      }).finally(function(){ btn.disabled = false; });
+      return;
+    }
+
+    setStoredAuthServerUrl(serverUrl);
+    authApi(serverUrl, "/api/register", { method:"POST", body:{ username:name, email:email, password:p1 } })
+      .then(function(){
+        pendingSetup = { name:name, email:email, password:p1, authServerUrl:serverUrl };
+        showVerifyPane(email);
+      }).catch(function(err){
+        errEl.textContent = err.message;
+      }).finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById("btnCheckVerified").addEventListener("click", function(){
+    if (!pendingSetup) return;
+    var errEl = document.getElementById("verifyErr");
+    errEl.textContent = "";
+    var btn = document.getElementById("btnCheckVerified");
+    btn.disabled = true;
+    authApi(pendingSetup.authServerUrl, "/api/status?email=" + encodeURIComponent(pendingSetup.email))
+      .then(function(status){
+        if (!status.verified){
+          errEl.textContent = "Még nincs megerősítve. Nyisd meg az emailben kapott linket, majd próbáld újra.";
+          return;
+        }
+        var p = pendingSetup;
+        var remember = document.getElementById("su-remember").checked;
+        return doSetup(p.name, p.password, p.email, p.authServerUrl).then(function(profile){
+          setRememberPref(remember);
+          return persistSessionKey(sessionKey, remember).then(function(){ pendingSetup = null; enterApp(profile); });
+        });
+      }).catch(function(err){
+        errEl.textContent = err.message;
+      }).finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById("btnResendVerify").addEventListener("click", function(){
+    if (!pendingSetup) return;
+    var p = pendingSetup;
+    authApi(p.authServerUrl, "/api/register", { method:"POST", body:{ username:p.name, email:p.email, password:p.password } })
+      .then(function(){ showToast("Megerősítő email újraküldve."); })
+      .catch(function(err){ document.getElementById("verifyErr").textContent = err.message; });
+  });
+
+  document.getElementById("unlockForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var errEl = document.getElementById("unlockErr");
+    errEl.textContent = "";
+    var pass = document.getElementById("ul-pass").value;
+    var btn = document.getElementById("unlockBtn");
+    btn.disabled = true;
+    var remember = document.getElementById("ul-remember").checked;
+    doUnlock(currentProfile, pass).then(function(ok){
+      if (!ok){ errEl.textContent = "Helytelen jelszó."; return; }
+      setRememberPref(remember);
+      return persistSessionKey(sessionKey, remember).then(function(){ enterApp(currentProfile); });
+    }).catch(function(err){
+      errEl.textContent = "Hiba történt: " + err.message;
+    }).finally(function(){ btn.disabled = false; });
+  });
+
+  // Forgot-password. If this profile has a verified account (email + auth
+  // server), route through the real email-based reset flow. Otherwise (an
+  // older, purely local profile with no server configured) fall back to the
+  // only honest option: wipe local data and start over, behind a two-step
+  // confirm so it's never a single accidental click.
+  var FORGOT_DEFAULT_LABEL = "Elfelejtett jelszó";
+  var forgotArmed = false;
+  var forgotTimer = null;
+  var btnForgot = document.getElementById("btnForgot");
+  function doWipeAndReload(){
+    return wipeAllLocalData().then(function(){
+      clearPersistedSessionKey();
+      window.location.reload();
+    });
+  }
+  btnForgot.addEventListener("click", function(){
+    if (currentProfile && currentProfile.email && currentProfile.authServerUrl){
+      showForgotPane();
+      return;
+    }
+    if (!forgotArmed){
+      forgotArmed = true;
+      btnForgot.textContent = "Biztosan minden adatot törlök ezen az eszközön? Kattints újra";
+      forgotTimer = setTimeout(function(){
+        forgotArmed = false;
+        btnForgot.textContent = FORGOT_DEFAULT_LABEL;
+      }, 5000);
+      return;
+    }
+    clearTimeout(forgotTimer);
+    forgotArmed = false;
+    btnForgot.textContent = FORGOT_DEFAULT_LABEL;
+    btnForgot.disabled = true;
+    doWipeAndReload().catch(function(err){
+      btnForgot.disabled = false;
+      document.getElementById("unlockErr").textContent = "A törlés nem sikerült: " + err.message;
+    });
+  });
+
+  document.getElementById("btnForgotCancel").addEventListener("click", function(){
+    showUnlockPane(currentProfile);
+  });
+
+  document.getElementById("btnSendForgotEmail").addEventListener("click", function(){
+    var errEl = document.getElementById("forgotErr1");
+    errEl.textContent = "";
+    var btn = document.getElementById("btnSendForgotEmail");
+    btn.disabled = true;
+    authApi(currentProfile.authServerUrl, "/api/forgot", { method:"POST", body:{ email: currentProfile.email } })
+      .then(function(){
+        document.getElementById("forgotStep1").hidden = true;
+        document.getElementById("forgotStep2").hidden = false;
+        showToast("Email elküldve (ha létezik ilyen fiók).");
+      }).catch(function(err){ errEl.textContent = err.message; })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  document.getElementById("btnContinueNewPassword").addEventListener("click", function(){
+    var errEl = document.getElementById("forgotErr2");
+    errEl.textContent = "";
+    var newPass = document.getElementById("forgot-newpass").value;
+    if (!newPass){ errEl.textContent = "Add meg az új jelszót, amit az emailben kapott linken beállítottál."; return; }
+    var btn = document.getElementById("btnContinueNewPassword");
+    btn.disabled = true;
+    var profileBefore = currentProfile;
+    authApi(profileBefore.authServerUrl, "/api/login", { method:"POST", body:{ email: profileBefore.email, password: newPass } })
+      .then(function(loginRes){
+        return doWipeAndReloadSkip().then(function(){
+          return doSetup(loginRes.username || profileBefore.username, newPass, profileBefore.email, profileBefore.authServerUrl);
+        });
+      }).then(function(profile){
+        var remember = document.getElementById("forgot-remember").checked;
+        setRememberPref(remember);
+        return persistSessionKey(sessionKey, remember).then(function(){
+          enterApp(profile);
+          showToast("Új jelszó aktiválva — friss, üres tároló jött létre.");
+        });
+      }).catch(function(err){ errEl.textContent = err.message; })
+      .finally(function(){ btn.disabled = false; });
+  });
+  // Like doWipeAndReload, but without the page reload (we build the new
+  // profile in the same page load right after wiping).
+  function doWipeAndReloadSkip(){
+    return wipeAllLocalData().then(function(){ clearPersistedSessionKey(); });
+  }
+
+  var nuclearArmed = false;
+  var nuclearTimer = null;
+  var NUCLEAR_DEFAULT_LABEL = "Nincs hozzáférésem ehhez az emailhez — minden adat törlése és teljesen új kezdés";
+  var btnNuclearReset = document.getElementById("btnNuclearReset");
+  btnNuclearReset.addEventListener("click", function(){
+    if (!nuclearArmed){
+      nuclearArmed = true;
+      btnNuclearReset.textContent = "Biztosan minden adatot törlök? Kattints újra";
+      nuclearTimer = setTimeout(function(){
+        nuclearArmed = false;
+        btnNuclearReset.textContent = NUCLEAR_DEFAULT_LABEL;
+      }, 5000);
+      return;
+    }
+    clearTimeout(nuclearTimer);
+    nuclearArmed = false;
+    btnNuclearReset.textContent = NUCLEAR_DEFAULT_LABEL;
+    btnNuclearReset.disabled = true;
+    doWipeAndReload().catch(function(err){
+      btnNuclearReset.disabled = false;
+      document.getElementById("forgotErr1").textContent = "A törlés nem sikerült: " + err.message;
+    });
+  });
+
+  document.getElementById("btnLock").addEventListener("click", function(){
+    sessionKey = null;
+    clearPersistedSessionKey();
+    docs = [];
+    docsById = {};
+    render();
+    showUnlockPane(currentProfile);
+  });
+
+  // ---------- boot ----------
+  function boot(){
+    renderChips();
+    getProfile().then(function(profile){
+      if (!profile){ showSetupPane(); return; }
+      currentProfile = profile;
+      tryRestoreSession(profile).then(function(restored){
+        if (restored) enterApp(profile);
+        else showUnlockPane(profile);
+      });
+    }).catch(function(){
+      showSetupPane();
+    });
+  }
+  boot();
+
+  // ---------- PWA: service worker + "install app" (one-touch launch) ----------
+  (function(){
+    var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var hint = document.getElementById("iosInstallHint");
+    if (isIOS && !isStandalone && hint){
+      var dismissed = false;
+      try { dismissed = window.localStorage.getItem("hexa_ios_hint_dismissed") === "1"; } catch(e){}
+      if (!dismissed) hint.hidden = false;
+    }
+    var closeBtn = document.getElementById("iosHintClose");
+    if (closeBtn){
+      closeBtn.addEventListener("click", function(){
+        if (hint) hint.hidden = true;
+        try { window.localStorage.setItem("hexa_ios_hint_dismissed", "1"); } catch(e){}
+      });
+    }
+  })();
+
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){ /* offline shell is a convenience, not critical */ });
+    });
+  }
+
+  var deferredInstallPrompt = null;
+  var installBtn = document.getElementById("installBtn");
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (installBtn) installBtn.hidden = false;
+  });
+  if (installBtn){
+    installBtn.addEventListener("click", function(){
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.finally(function(){
+        deferredInstallPrompt = null;
+        installBtn.hidden = true;
+      });
+    });
+  }
+  window.addEventListener("appinstalled", function(){
+    if (installBtn) installBtn.hidden = true;
+  });
+})();
+</script>
+</body>
+</html>
