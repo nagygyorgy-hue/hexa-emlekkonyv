@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HEXA Brain">
+<meta name="mobile-web-app-capable" content="yes">
+<title>HEXA Visual Brain v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c12; --surface:#12151f; --surface-2:#1a1e2b; --surface-3:#232838;
+    --line:#252a3a; --ink:#e7eaf3; --ink-dim:#8992a8; --ink-faint:#5b6377;
+    --accent:#f5cf65; --accent-dim:#7a6a3a; --good:#4fd1c5; --bad:#f0616f;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;display:flex;flex-direction:column;}
+  [hidden]{display:none!important;}
+  ::selection{background:var(--accent-dim);}
+
+  header{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--surface),var(--bg));flex-wrap:wrap;z-index:30;}
+  .brand{display:flex;align-items:baseline;gap:8px;white-space:nowrap;}
+  .brand .mark{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--accent);border:1px solid var(--accent-dim);border-radius:5px;padding:2px 6px;}
+  .brand h1{font-size:15px;font-weight:600;margin:0;}
+  .chip{font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);background:var(--surface-2);border:1px solid var(--line);
+    border-radius:999px;padding:3px 9px;white-space:nowrap;}
+  .chip b{color:var(--ink);}
+  .tabs{display:flex;gap:4px;margin-left:auto;}
+  .tab-btn{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);color:var(--ink-dim);border:1px solid var(--line);
+    border-radius:6px;padding:6px 12px;cursor:pointer;}
+  .tab-btn.active{background:var(--surface-3);color:var(--accent);border-color:var(--accent-dim);}
+
+  .layout{flex:1 1 auto;display:flex;min-height:0;}
+  aside.left{width:270px;flex:0 0 auto;border-right:1px solid var(--line);background:var(--surface);overflow-y:auto;padding:10px;}
+  aside.right{width:340px;flex:0 0 auto;border-left:1px solid var(--line);background:var(--surface);overflow-y:auto;padding:10px;}
+  main{flex:1 1 auto;position:relative;min-width:0;}
+
+  .panel{margin-bottom:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);padding:9px 10px;}
+  .panel h4{margin:0 0 8px 0;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-faint);}
+  label.field{display:block;font-size:11px;color:var(--ink-dim);margin:6px 0 3px;}
+  select, input[type=text]{width:100%;background:var(--surface-3);border:1px solid var(--line);color:var(--ink);
+    border-radius:5px;padding:6px 8px;font-family:var(--sans);font-size:12px;}
+  .checkline{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-dim);margin:6px 0;}
+  .btn{font-family:var(--mono);font-size:10.5px;background:var(--surface-3);color:var(--ink);border:1px solid var(--line);
+    border-radius:5px;padding:6px 9px;cursor:pointer;margin:2px 3px 2px 0;}
+  .btn:hover{border-color:var(--accent-dim);}
+  .btn.small{font-size:10px;padding:5px 7px;}
+  .btn.tiny{font-size:9.5px;padding:3px 6px;}
+  .btn.ghost{background:transparent;}
+
+  .view-pane{position:absolute;inset:0;}
+  #topoHost{position:absolute;inset:0;}
+  #historyCanvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;}
+  #reasoningPane{position:absolute;inset:0;overflow-y:auto;padding:18px 22px;}
+  #reasoningPane .toolbar{margin-bottom:14px;display:flex;gap:8px;align-items:center;}
+
+  .authtag{font-family:var(--mono);font-size:10px;border-radius:4px;padding:2px 7px;display:inline-block;}
+  .auth-CURRENT_AUTHORITATIVE{background:#f5cf6522;color:#f5cf65;border:1px solid #7a6a3a;}
+  .auth-CURRENT_CANDIDATE{background:#e8973f22;color:#e8973f;border:1px solid #6b4e26;}
+  .auth-LEGACY_CANDIDATE{background:#4f6f9e22;color:#8fb0da;border:1px solid #3a4d6e;}
+  .auth-REJECTED_SUPERSEDED_UNRESOLVED{background:#c9455a22;color:#e0687a;border:1px solid #6e2c35;}
+
+  .insp-head{margin-bottom:4px;}
+  #inspector h3{font-size:13.5px;margin:4px 0 8px;line-height:1.35;}
+  .insp-grid{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}
+  .kv-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;border-bottom:1px dashed var(--line);}
+  .kv-row .k{color:var(--ink-faint);}
+  .kv-row .v{color:var(--ink);text-align:right;word-break:break-word;max-width:60%;}
+  .source-text{margin-top:6px;padding:8px;background:var(--surface-3);border-radius:6px;font-size:12px;line-height:1.5;white-space:pre-wrap;}
+  .insp-radars{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;}
+  .radar-box{background:var(--surface-3);border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;}
+  .radar-box .cap{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-top:2px;}
+  .insp-actions{display:flex;flex-wrap:wrap;margin-top:8px;}
+  .fab-warning{margin-top:8px;padding:8px;border:1px solid #6e2c35;background:#c9455a15;border-radius:6px;font-size:11px;color:#e0687a;}
+
+  .rr-pill{display:inline-block;font-family:var(--mono);font-size:9.5px;background:var(--surface-3);border:1px solid var(--line);
+    border-radius:999px;padding:2px 7px;margin:0 4px 4px 0;color:var(--ink-dim);}
+  .rr-pill.status{color:var(--accent);border-color:var(--accent-dim);}
+  .rr-pill.cert{color:var(--good);}
+  .rr-pill.cand{color:#8fb0da;}
+  .rr-evt{border:1px solid var(--line);border-radius:6px;padding:7px 9px;margin-bottom:6px;background:var(--surface-2);cursor:pointer;}
+  .rr-evt:hover{border-color:var(--accent-dim);}
+  .rr-evt.fab{border-color:#6e2c35;background:#c9455a10;}
+  .rr-evt-title{font-size:12px;font-weight:600;margin-bottom:3px;}
+  .rr-evt-meta{margin-bottom:3px;}
+  .rr-evt-details{font-size:11px;color:var(--ink-dim);line-height:1.4;}
+  .rr-evt-actions{margin-top:6px;}
+  .rr-subhead{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);margin:12px 0 6px;}
+  .rr-section{margin-bottom:14px;}
+  .rr-section h4{font-size:12px;margin:0 0 8px;color:var(--ink);}
+  .rr-prose{font-size:12.5px;line-height:1.55;color:var(--ink);}
+  .rr-ul{margin:4px 0;padding-left:18px;font-size:11.5px;color:var(--ink-dim);}
+  .rr-status-row{margin-bottom:14px;}
+  .dim{color:var(--ink-faint);}
+  .empty-state{padding:40px;text-align:center;color:var(--ink-faint);}
+
+  #toast{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:var(--surface-3);
+    border:1px solid var(--accent-dim);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:12px;z-index:50;}
+  .search-results, .side-scroll{max-height:none;}
+
+  /* -- blind-run reasoning view: additive only, never restyles the existing engine.py run render -- */
+  .rr-evt.sbl{border-color:#3a4d6e;background:#4f6f9e14;}
+  .rr-evt.sbl:hover{border-color:#8fb0da;}
+  .rr-evt.topocand{opacity:.72;border-style:dashed;}
+  .rr-evt.rejectedmatch{border-color:#6e2c35;background:#c9455a10;}
+  .rr-gap{border:1.5px dashed #e8973f;background:#e8973f12;border-radius:8px;padding:10px 12px;margin:8px 0;}
+  .rr-gap .rr-gap-label{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:#e8973f;text-transform:uppercase;margin-bottom:4px;}
+  .rr-materialized{border:1.5px dashed #3fa8e8;background:#3fa8e812;border-radius:8px;padding:10px 12px;margin:8px 0;}
+  .rr-materialized .rr-materialized-label{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:#2f86bd;text-transform:uppercase;margin-bottom:4px;}
+  .rr-unresolved-id{display:inline-block;font-family:var(--mono);font-size:10px;color:#e8973f;background:#e8973f14;
+    border:1px dashed #e8973f;border-radius:5px;padding:3px 7px;margin:2px 4px 2px 0;cursor:default;}
+  .rr-authclass{font-family:var(--mono);font-size:9.5px;border-radius:4px;padding:2px 6px;margin-right:4px;}
+  .rr-authclass.SOURCE_BACKED_LEGACY{color:#8fb0da;border:1px solid #3a4d6e;}
+  .rr-authclass.TOPOLOGY_CANDIDATE{color:var(--ink-faint);border:1px solid var(--line);}
+  .rr-authclass.STRUCTURAL_INFERENCE{color:#e8973f;border:1px solid #6b4e26;}
+  .rr-authclass.REJECTED_MATCH{color:#e0687a;border:1px solid #6e2c35;}
+  .rr-authclass.CURRENT_AUTHORITATIVE{color:#f5cf65;border:1px solid #7a6a3a;}
+  .rr-authclass.REJECTED_SUPERSEDED_UNRESOLVED{color:#e0687a;border:1px solid #6e2c35;}
+  .rr-hop{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11px;color:var(--ink-dim);}
+  .rr-hop b{color:var(--ink);}
+  .rr-cmp-row{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;padding:5px 0;border-bottom:1px dashed var(--line);}
+  /* Trace-replay view (additive; does not alter any rule above) */
+  .rr-trace-step{border-left:2px solid var(--line);padding:2px 0 12px 12px;margin-bottom:2px;position:relative;}
+  .rr-trace-step-head{display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;}
+  .rr-trace-num{font-family:var(--mono);font-size:10px;color:var(--ink-faint);background:var(--surface-3);border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  .rr-authclass.cat-CURRENT_AUTHORITATIVE_NODE{color:#f5cf65;border:1px solid #7a6a3a;}
+  .rr-authclass.cat-HISTORICAL_CANDIDATE_NODE{color:#8fb0da;border:1px solid #3a4d6e;}
+  .rr-authclass.cat-SOURCE_HYDRATION{color:#6fcf97;border:1px solid #2f6b4a;}
+  .rr-authclass.cat-TOPOLOGICAL_BRIDGE{color:#c99bf0;border:1px solid #5a3f7a;border-style:dashed;}
+  .rr-authclass.cat-REJECTED_OR_SUPERSEDED{color:#e0687a;border:1px solid #6e2c35;}
+  .rr-authclass.cat-REASONING_TRANSITION{color:var(--ink-faint);border:1px solid var(--line);}
+  .rr-authclass.cat-NEW_CREATIVE_TRANSFORMATION{color:#f0a94f;border:1px solid #7a5a26;}
+  .rr-authclass.rel-HEXA_TOPOLOGY_ENGINE_LATENT{color:#8fb0da;border:1px solid #3a4d6e;border-style:dashed;}
+  .rr-authclass.rel-STORED_GRAPH_EDGE{color:#6fcf97;border:1px solid #2f6b4a;}
+  .rr-authclass.rel-MODEL_DERIVED_NOT_HEXA_EDGE{color:#e0687a;border:1px solid #6e2c35;border-style:dashed;}
+  .rr-authclass.rel-NEW_CREATIVE_DECISION{color:#c99bf0;border:1px solid #5a3f7a;}
+
+  /* ============================================================
+     MOBILE / TOUCH RESPONSIVE LAYER -- additive only.
+     Nothing above this block is modified; desktop (>860px) is
+     unchanged. No HEXA data, graph semantics, authority tiers or
+     reasoning content are touched here -- layout/touch input only.
+     ============================================================ */
+  .mobile-tabbar{display:none;}
+  .mobile-backdrop{display:none;}
+  .drawer-head{display:none;}
+  .sheet-handle{display:none;}
+  .mobile-fab{display:none;}
+  .hint-mobile{display:none;}
+  .toolbar-label{min-width:170px;}
+  .run-select{width:auto;min-width:230px;}
+
+  @media (max-width:860px){
+    html,body{overflow:hidden;}
+    header{flex-wrap:nowrap;overflow:hidden;padding:8px 12px;padding-top:max(8px, env(safe-area-inset-top));gap:8px;}
+    header .chip{display:none;}
+    header .brand h1{font-size:13px;}
+    header .tabs{display:none;}
+
+    .mobile-tabbar{
+      display:flex;flex:0 0 auto;background:var(--surface);border-bottom:1px solid var(--line);
+      padding:6px 8px;gap:6px;z-index:30;
+    }
+    .mobile-tabbar .tab-btn{
+      flex:1 1 0;min-height:44px;font-size:12px;letter-spacing:.03em;border-radius:8px;
+      display:flex;align-items:center;justify-content:center;
+    }
+
+    .hint-desktop{display:none;}
+    .hint-mobile{display:block;font-size:10px;}
+
+    main{width:100%;}
+    /* Search & Filters are graph (BRAIN/topology) concepts -- shown only while
+       that pane is the active one, so they never sit on top of the History
+       or Reasoning panes' own content (they used to, covering the top of
+       both). The sibling selector below is why these two buttons live right
+       after the topology view-pane in the HTML. */
+    .mobile-fab{
+      display:none;align-items:center;gap:6px;position:absolute;top:10px;z-index:40;
+      min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;
+      background:var(--surface-2);border:1px solid var(--line);color:var(--ink);
+      font-family:var(--mono);font-size:10.5px;box-shadow:0 4px 14px rgba(0,0,0,.4);
+    }
+    .view-pane[data-view="topology"]:not([hidden]) ~ .mobile-fab{display:flex;}
+    .filters-fab{left:10px;}
+    .search-fab{right:10px;}
+
+    aside.left{
+      position:fixed;left:0;top:0;bottom:0;width:86vw;max-width:340px;
+      transform:translateX(-105%);transition:transform .25s ease;z-index:60;
+      padding-bottom:calc(14px + env(safe-area-inset-bottom));
+      padding-top:calc(10px + env(safe-area-inset-top));
+    }
+    aside.left.open{transform:translateX(0);}
+
+    aside.right{
+      position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;
+      border-left:none;border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+      max-height:50vh;height:auto;transform:translateY(105%);transition:transform .28s ease;z-index:70;
+      padding-bottom:calc(14px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.55);
+    }
+    aside.right.open{transform:translateY(0);}
+    aside.right.expanded{max-height:88vh;}
+
+    .drawer-head{
+      display:flex;align-items:center;justify-content:space-between;padding:2px 2px 10px;
+      font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-dim);
+    }
+    .drawer-close{
+      min-width:44px;min-height:44px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);
+      color:var(--ink);font-size:14px;cursor:pointer;
+    }
+    .sheet-handle{
+      display:block;width:40px;height:4px;border-radius:2px;background:var(--line);margin:8px auto 2px;
+    }
+
+    .mobile-backdrop{
+      display:block;position:fixed;inset:0;background:rgba(4,5,9,.55);z-index:55;
+      opacity:0;pointer-events:none;transition:opacity .2s ease;
+    }
+    .mobile-backdrop.show{opacity:1;pointer-events:auto;}
+
+    select, input[type=text]{font-size:16px;}
+    .btn{font-size:12px;padding:8px 10px;min-height:36px;}
+
+    #reasoningPane{padding:14px 14px calc(14px + env(safe-area-inset-bottom));overflow-x:hidden;}
+    #reasoningPane .toolbar{flex-wrap:wrap;row-gap:8px;}
+    .toolbar-label{min-width:0;width:100%;}
+    .run-select{width:100%;min-width:0;}
+    /* the "sample run vs blind run" source-note chip is long, free-form prose --
+       it must NOT inherit the header chips' white-space:nowrap on a narrow screen,
+       or it alone forces the whole toolbar (and #reasoningPane) to overflow
+       horizontally regardless of everything else wrapping correctly. */
+    #reasoningSourceNote{white-space:normal;max-width:100%;flex-basis:100%;line-height:1.4;}
+    .rr-cmp-row, .rr-hop{flex-wrap:wrap;}
+    aside.left, aside.right{overflow-x:hidden;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark">HEXA</span><h1>Visual Brain v2</h1></div>
+  <span class="chip" id="modeChip">CURRENT_LAYER_MODE</span>
+  <span class="chip" id="fingerprintChip">snapshot fingerprint &#9432;</span>
+  <span class="chip">nodes <b id="statNodes">-</b></span>
+  <span class="chip">edges <b id="statEdges">-</b></span>
+  <span class="chip">vectorized <b id="statVectors">-</b></span>
+  <span class="chip">curated bridges <b id="statBridges">-</b></span>
+  <div class="tabs">
+    <button class="tab-btn" data-tab="topology">TOPOLOGY</button>
+    <button class="tab-btn" data-tab="history">HISTORY</button>
+    <button class="tab-btn" data-tab="reasoning">REASONING</button>
+  </div>
+</header>
+
+<nav class="mobile-tabbar" id="mobileTabbar">
+  <button class="tab-btn mobile-tab-btn" data-tab="topology" type="button">BRAIN</button>
+  <button class="tab-btn mobile-tab-btn" data-tab="history" type="button">HISTORY</button>
+  <button class="tab-btn mobile-tab-btn" data-tab="reasoning" type="button">REASONING</button>
+</nav>
+<div class="mobile-backdrop" id="mobileBackdrop"></div>
+
+<div class="layout">
+  <aside class="left">
+    <div class="drawer-head"><span>Search &amp; Filters</span><button type="button" id="filtersCloseBtn" class="drawer-close" aria-label="Close filters">&#10005;</button></div>
+    <div class="panel" id="searchPanel">
+      <h4>Search / Focus</h4>
+      <input type="text" id="searchBox" placeholder="text, id, conversation, domain...">
+      <div id="searchResults" class="search-results"></div>
+    </div>
+
+    <div class="panel">
+      <h4>Authority &amp; Domain</h4>
+      <label class="field">Authority tier</label>
+      <select id="authorityFilter">
+        <option value="">(all tiers)</option>
+        <option value="CURRENT_AUTHORITATIVE">CURRENT AUTHORITATIVE</option>
+        <option value="CURRENT_CANDIDATE">CURRENT CANDIDATE</option>
+        <option value="LEGACY_CANDIDATE">LEGACY CANDIDATE</option>
+        <option value="REJECTED_SUPERSEDED_UNRESOLVED">REJECTED / SUPERSEDED / UNRESOLVED</option>
+      </select>
+      <label class="field">Domain</label>
+      <select id="domainFilter"><option value="">(all domains)</option></select>
+      <label class="field">Current &#8596; Legacy</label>
+      <select id="curLegMode">
+        <option value="all">Show both (labeled separately)</option>
+        <option value="current">Current only</option>
+        <option value="legacy">Legacy only</option>
+      </select>
+      <div class="checkline"><input type="checkbox" id="curatedOnlyToggle"><label for="curatedOnlyToggle">SHOW CURATED TRANSFORMS only</label></div>
+      <button class="btn small" id="clearHighlightBtn">CLEAR HIGHLIGHT</button>
+      <button class="btn small" id="resetLayoutBtn">RESET MANUAL LAYOUT</button>
+    </div>
+
+    <div class="panel">
+      <h4>History view options</h4>
+      <div class="checkline"><input type="checkbox" id="includeLegacyHistory"><label for="includeLegacyHistory">Include legacy (aggregated)</label></div>
+      <label class="field">Lane mode</label>
+      <select id="laneModeSelect">
+        <option value="kind">By kind</option>
+        <option value="domain">By domain</option>
+        <option value="authority">By authority tier</option>
+      </select>
+    </div>
+
+    <div class="panel">
+      <h4>Curated transforms (10 bridges)</h4>
+      <div id="curatedPanel"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="view-pane" data-view="topology">
+      <div id="topoHost"></div>
+      <div class="chip hint-desktop" style="position:absolute;left:12px;top:12px;z-index:4;">
+        drag = orbit &middot; shift+drag = pan &middot; scroll = zoom &middot; click = select &middot; alt+drag node = reposition
+      </div>
+      <div class="chip hint-mobile" style="position:absolute;left:10px;top:62px;z-index:4;">
+        drag = orbit &middot; pinch = zoom + pan &middot; tap = select
+      </div>
+    </div>
+    <div class="view-pane" data-view="history" hidden><canvas id="historyCanvas"></canvas></div>
+    <button type="button" id="searchOpenBtn" class="mobile-fab search-fab" aria-label="Open search">&#128269;<span>SEARCH</span></button>
+    <button type="button" id="filtersOpenBtn" class="mobile-fab filters-fab" aria-label="Open filters">&#9776;<span>FILTERS</span></button>
+    <div class="view-pane" data-view="reasoning" hidden>
+      <div id="reasoningPane">
+        <div class="toolbar">
+          <label class="field toolbar-label" style="margin:0;">Run</label>
+          <select id="runSelect" class="run-select">
+            <option value="sample">Sample run -- Alpha.3 promotion (current data)</option>
+            <option value="szeretett">Blind run -- &quot;Szeretett&quot; (legacy reconnection)</option>
+            <option value="recsk_hatarertek_live_01">Live trace replay -- RECSK_HATARERTEK_LIVE_01</option>
+          </select>
+          <button class="btn small" id="restoreSampleBtn">RESTORE REAL SAMPLE RUN</button>
+          <button class="btn small" id="loadRunBtn">LOAD REAL SAVED RUN...</button>
+          <input type="file" id="loadRunInput" accept="application/json" hidden>
+          <span class="chip" id="reasoningSourceNote"></span>
+        </div>
+        <div id="reasoningMount"></div>
+      </div>
+    </div>
+    <div id="toast" hidden></div>
+  </main>
+
+  <aside class="right">
+    <div class="sheet-handle" id="inspectorSheetHandle" aria-hidden="true"></div>
+    <div class="drawer-head"><span>Inspector</span><button type="button" id="inspectorCloseBtn" class="drawer-close" aria-label="Close inspector">&#10005;</button></div>
+    <div class="panel">
+      <h4>Inspector</h4>
+      <div id="inspector"><p class="dim">Click a node or edge to inspect it.</p></div>
+    </div>
+    <div class="panel">
+      <h4>Project Archaeology overlay</h4>
+      <div id="archaeologyPanel"></div>
+    </div>
+  </aside>
+</div>
+
+<script src="../data/graph_nodes.js?v=20260919trace2"></script>
+<script src="../data/graph_edges.js?v=20260919trace2"></script>
+<script src="../data/graph_summary.js?v=20260919trace2"></script>
+<script src="../data/curated_bridges.js?v=20260919trace2"></script>
+<script src="../data/overlay_archaeology.js?v=20260919trace2"></script>
+<script src="../data/reasoning_run_sample.js?v=20260919trace2"></script>
+<script src="../data/reasoning_run_szeretett.js?v=20260919trace2"></script>
+<script src="../data/reasoning_run_recsk_hatarertek_live_01.js?v=20260919trace2"></script>
+<script src="js/graph-model.js?v=20260919trace2"></script>
+<script src="js/view-topology.js?v=20260919trace2"></script>
+<script src="js/view-history.js?v=20260919trace2"></script>
+<script src="js/view-reasoning.js?v=20260919trace2"></script>
+<script src="js/app.js?v=20260919trace2"></script>
+</body>
+</html>
